@@ -231,7 +231,7 @@ fi
 
 
 ### Link in Multiqc files to diagnostics folder
-for p in `tail -n+20 SampleSheet.csv|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
+for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
 	mqc=${basecalls_dir}${p}/multiqc_report.html
 	if [ -f $mqc ]; then
 		ln -s ${mqc} ${diagf}${p}_multiqc_report.html
