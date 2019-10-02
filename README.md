@@ -11,3 +11,5 @@ Go to the run directory.
 OPTIONAL: change the email in demultiplex/bcl2fastq.sh file (#PBS -M your.email@vai.org)
 
 ```qsub -q genomics demultiplex/bcl2fastq.sh```
+
+If this doesn't work, check the demultiplex_workflow.[oe]JOB.ID files that are in the run directory.
