@@ -69,6 +69,7 @@ else
 		echo "INFORMATION:"
 		echo "	Demultiplexing with bcl2fastq..." 
 		/secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> bcl2fastq.log #Launch standard bcl2fastq
+		touch ${demux_flag}
 	else # or not if it's alredy done
 		echo "INFORMATION:"
 		echo "	Found ${demux_flag}. I'm not demultiplexing with bcl2fastq."
@@ -145,18 +146,18 @@ fi
 echo "INFORMATION:"
 echo "	MultiQC..."
 cd ${basecalls_dir}
-#~ for p in `tail -n+20 ${PBS_O_WORKDIR}/SampleSheet.csv|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
-	#~ if [ ! -f ${basecalls_dir}${p}/multiqc_report.html ]; then
-		#~ echo "		Doing MultiQC for project ${p}!"
-		#~ cd ${p}/
-		#~ ln -sf ${basecalls_dir}Undetermined* .
-		#~ export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best
-		#~ multiqc .
-		#~ cd ..
-	#~ else
-		#~ echo "		Not doing multiqc for project ${p} because the report exists."
-	#~ fi
-#~ done
+for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
+	if [ ! -f ${basecalls_dir}${p}/multiqc_report.html ]; then
+		echo "		Doing MultiQC for project ${p}!"
+		cd ${p}/
+		ln -sf ${basecalls_dir}Undetermined* .
+		export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best
+		multiqc .
+		cd ..
+	else
+		echo "		Not doing multiqc for project ${p} because the report exists."
+	fi
+done
 
 cd $PBS_O_WORKDIR
 diagf=${PBS_O_WORKDIR}/diagnostic_files/
