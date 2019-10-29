@@ -6,112 +6,127 @@
 #PBS -N demultiplex_workflow
 
 messages=/secondary/projects/genomicscore/tools/boilerplate_demux/novaseq/messages/ # Larry's message files here
-mergenlanes_script=/secondary/projects/genomicscore/tools/mergelanes/mergeNovaseqLanes2.pl
+
+
 barcodes_perl=${PBS_O_WORKDIR}/demultiplex/barcodes.pl # Perl script to quantify barcodes
 mergenlanes_script=${PBS_O_WORKDIR}/demultiplex/mergelanes.pl
 barcodes_perl=/secondary/projects/genomicscore/tools/boilerplate_demux/Barcodes.pl # Perl script to quantify barcodes
 basecalls_dir=${PBS_O_WORKDIR}/Data/Intensities/BaseCalls/
 cd ${PBS_O_WORKDIR} #Change into the run directory
+#======================================================================= Get the run information
 rundate="$(cut -d '_' -f1 <<< `basename ${PBS_O_WORKDIR}` )"
 machine="$(cut -d '_' -f2 <<< `basename ${PBS_O_WORKDIR}` )"
-machine_grep="@${machine}"
+machine_grep="@${machine}" # used to get overrepresented barcodes in the demultiplexing workflow
 runnumber="$(cut -d '_' -f3 <<< `basename ${PBS_O_WORKDIR}` )"
 flowcell="$(cut -d '_' -f4 <<< `basename ${PBS_O_WORKDIR}` )"
 NOW=`date '+%F_%H:%M:%S'`;
 echo "
-INFORMATION:
+Information:
 	DATETIME: ${NOW}
 	RUN DATE: ${rundate}
 	MACHINE: ${machine}
 	RUN NUMBER: ${runnumber}
 	FLOWCELL: ${flowcell}
-" 
-nlanes=$(cat SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f1|grep -v '^$'|sort|uniq|wc -l)
-n_uniq_sample_lane=$(cat SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f1-2|grep -v '^$'|sort|uniq|wc -l)
-n_sample_lane=$(cat SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f2|grep -v '^$'|sort|wc -l)
-n_uniq_sample_names=$(cat SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f2|grep -v '^$'|sort|uniq|wc -l) 
-if [ ${machine} == 'FS10000742' ]; then # iSeq -f12
-	echo "INFORMATION:"
-	echo "	iSeq run"
-	project_code_field=12
-	read2_number_of_cycles=$(cat RunParameters.xml|grep '<ReadType>'|sed -e 's/<ReadType>//'|sed -e 's/<\/ReadType>//'|sed -e 's/ //g') # terrible but effective :)
-else # novaseq -f10
-	echo "INFORMATION:"
-	echo "	NovaSeq run"
-	project_code_field=10
-	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2NumberOfCycles>'|sed -e 's/<Read2NumberOfCycles>//'|sed -e 's/<\/Read2NumberOfCycles>//'|sed -e 's/ //g') # terrible but effective :)
+"
+#======================================================================= # Set some parameters based on the machine
+if [ ${machine} == 'FS10000742' ]; then # ISEQ -f12
+	echo "This is an ISEQ run."
+	project_code_field=12 # 12 for iseq
+	read2_number_of_cycles=$(cat RunParameters.xml|grep '<ReadType>'|sed -e 's/<ReadType>//'|sed -e 's/<\/ReadType>//'|sed -e 's/ //g') 
+	samplesheet_grep='^Lane'
+elif [ ${machine} == 'A00426' ]; then # NOVASEQ -f10
+	echo "This is a NOVASEQ run."
+	project_code_field=10 # 10 for novaseq
+	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2NumberOfCycles>'|sed -e 's/<Read2NumberOfCycles>//'|sed -e 's/<\/Read2NumberOfCycles>//'|sed -e 's/ //g') 
+	samplesheet_grep='^Lane'
+elif [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
+	echo "This is a NEXTSEQ run."
+	project_code_field=9 # 9 for nextseq
+	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2NumberOfCycles>'|sed -e 's/<Read2NumberOfCycles>//'|sed -e 's/<\/Read2NumberOfCycles>//'|sed -e 's/ //g') 
+	samplesheet_grep='^Sample_ID'
+else
+	echo "Exiting:"
+	echo "	Did not recognize the sequencing machine (${machine})."
+	echo "	(If you are running this is an interactive job: export PBS_O_WORKDIR=\$PWD)"
 fi
-
-n_project_codes=$(cat SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq|wc -l)
-
+#======================================================================= Test if there are project codes
+n_project_codes=$(cat SampleSheet.csv|grep -A10000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq|wc -l)
 if [ ! ${n_project_codes} -gt 0 ]; then # if no project codes, fail
-	echo "INFORMATION:"
-	echo "	I found ${n_project_codes} project codes!"
-	echo "	(Ian, if you are running this is interactive: export PBS_O_WORKDIR=\$PWD)"
+	echo "Exiting:"
+	echo "	I found zero (${n_project_codes}) project codes! These need to be included!"
+	echo "	(If you are running this is an interactive job: export PBS_O_WORKDIR=\$PWD)"
 	exit
 else
-	echo "INFORMATION:"
-	echo "	Proceeding with ${n_project_codes} project codes!"
+	echo "Information:"
+	echo "	Proceeding to demultiplex ${n_project_codes} project codes!"
 fi
-
-#======================================================================= demultiplex & mergelanes
-if [ ! "${n_uniq_sample_lane}" == "${n_sample_lane}" ]; then # if sample sheet error
-	echo "INFORMATION:"
-	echo "	I expected ${n_sample_lane} unique sample/lane combinations, but found ${n_uniq_sample_lane} of them?"
+#======================================================================= Check the sample sheet
+nlanes=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f1|grep -v '^$'|sort|uniq|wc -l)
+n_sample_lane_unique=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f1-2|grep -v '^$'|sort|uniq|wc -l)
+n_sample_lane=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f2|grep -v '^$'|sort|wc -l)
+n_uniq_sample_names=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f2|grep -v '^$'|sort|uniq|wc -l) 
+if [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
+	nlanes=4
+fi
+if [ ! "${n_sample_lane_unique}" == "${n_sample_lane}" ]; then
+	echo "Exiting:"
+	echo "	I expected ${n_sample_lane} unique sample/lane combinations (e.g. sample_A_lane_1, sample_A_lane_2), but found ${n_sample_lane_unique} of them."
 	exit
+fi
+#======================================================================= Demultiplex
+echo "Information:"
+echo "	Demultiplex ${n_uniq_sample_names} samples on ${nlanes} lanes."
+echo "	There are ${n_sample_lane} lane/samples combinations (ignore if nextseq)."
+
+#~ exit
+
+demux_flag=${PBS_O_WORKDIR}/bcl2fastq.done
+if [ ! -f ${demux_flag} ]; then
+	echo "Information:"
+	echo "	Demultiplexing with bcl2fastq..." 
+	/secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> bcl2fastq.log # Launch bcl2fastq, needs to be made a module
+	# should write a check to qc if demultiplexing finished
+	touch ${demux_flag}
 else
-	echo "INFORMATION:"
-	echo "	I am proceeding to demultiplex ${n_uniq_sample_names} unique samples."
-	echo "	These are on ${nlanes} lanes."
-	echo "	There are ${n_sample_lane} lane/samples combinations."
-	demux_flag=${PBS_O_WORKDIR}/bcl2fastq.done
-	if [ ! -f ${demux_flag} ]; then
-		echo "INFORMATION:"
-		echo "	Demultiplexing with bcl2fastq..." 
-		/secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> bcl2fastq.log #Launch standard bcl2fastq
-		touch ${demux_flag}
-	else # or not if it's alredy done
-		echo "INFORMATION:"
-		echo "	Found ${demux_flag}. I'm not demultiplexing with bcl2fastq."
-	fi
+	echo "Information:"
+	echo "	I'm not demultiplexing with bcl2fastq (found ${demux_flag} indicating it has been done already)."
+fi
+#======================================================================= Mergelanes
+cd ${basecalls_dir} #Change into the BaseCalls directory
 
-	cd ${basecalls_dir} #Change into the BaseCalls directory
+echo "Information:"
+echo "	Merging ${nlanes} lanes into L000 files"
+mergelanes_cmd="${mergenlanes_script} ${PBS_O_WORKDIR}/SampleSheet.csv ${read2_number_of_cycles} ${machine} ${PBS_O_WORKDIR}/"
+perl ${mergelanes_cmd}
 
-	#Merge NOVASEQ lanes
-	echo "INFORMATION:"
-	echo "	Merging ${nlanes} lanes into L000 files (I am in directory $PWD)"
-	mergelanes_cmd="${mergenlanes_script} ${PBS_O_WORKDIR}/SampleSheet.csv ${read2_number_of_cycles} ${machine} ${PBS_O_WORKDIR}/"
-	perl ${mergelanes_cmd}
-	
-	mergelanes_override=${PBS_O_WORKDIR}/mergelanes.override # if you still want to proceed (e.g. some samples not supposed to be in the samplesheet.csv)
-	mergelanes_flag=${PBS_O_WORKDIR}/mergelanes.failed
-	if [ -e ${mergelanes_flag} ]; then
-		if [ ! -e ${mergelanes_override} ]; then
-			echo "INFORMATION:"
-			echo "	Failing because the mergelanes failed"
-			echo "INFORMATION:"
-			echo "	To diagnose the error, run \"${mergelanes_cmd}\""
-			echo "	Once the error is fixed remove ${mergelanes_flag} and resubmit the demultiplexing job." 
-			#~ cat ${messages}encouragement.message
-			exit
-		else
-			echo "INFORMATION:"
-			echo "	Mergelanes FAILED, but I received an override"
-		fi
+mergelanes_override=${PBS_O_WORKDIR}/mergelanes.override # if you still want to proceed (e.g. some samples not supposed to be in the samplesheet.csv)
+mergelanes_flag=${PBS_O_WORKDIR}/mergelanes.failed
+if [ -e ${mergelanes_flag} ]; then
+	if [ ! -e ${mergelanes_override} ]; then
+		echo "Information:"
+		echo "	Failing because the mergelanes failed"
+		echo "Information:"
+		echo "	To diagnose the error, run \"${mergelanes_cmd}\""
+		echo "	Once the error is fixed remove ${mergelanes_flag} and resubmit the demultiplexing job." 
+		exit
 	else
-		echo "INFORMATION:"
-		echo "	Mergelanes PASS! (did not find ${mergelanes_flag}"
+		echo "Information:"
+		echo "	Mergelanes FAILED, but I received an override"
 	fi
+else
+	echo "Information:"
+	echo "	Mergelanes PASS! (did not find ${mergelanes_flag}"
 fi
+
 
 cd $PBS_O_WORKDIR
 
-echo "INFORMATION:"
+echo "Information:"
 echo "	Demultiplexing and L000 file generation is now done!"
 
-#======================================================================= fastqc / multiqc
+#======================================================================= Fastqc / Multiqc
 ##### FASTQC on samples
-echo "INFORMATION:"
+echo "Information:"
 echo "	FastQC..."
 for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
 	#Launch FastQC
@@ -130,11 +145,11 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lan
 			fi
 		done
 	else
-		echo "	No L000 files to do FASTQC on ???"
+		echo "	There are 0 L000 files to do FASTQC on ?!?!?!"
 	fi
 done
 ##### FASTQC on Undetermined
-echo "INFORMATION:"
+echo "Information:"
 if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_fastqc.html ]; then
 	cd ${basecalls_dir}
 	echo "	FastQC on the Undetermined."
@@ -143,7 +158,7 @@ else
 	echo "	FastQC on the Undetermined exists!"
 fi
 ##### MULTIQC
-echo "INFORMATION:"
+echo "Information:"
 echo "	MultiQC..."
 cd ${basecalls_dir}
 for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
@@ -151,7 +166,7 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lan
 		echo "		Doing MultiQC for project ${p}!"
 		cd ${p}/
 		ln -sf ${basecalls_dir}Undetermined* .
-		export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best
+		export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best, needs to be a module
 		multiqc .
 		cd ..
 	else
@@ -163,18 +178,14 @@ cd $PBS_O_WORKDIR
 diagf=${PBS_O_WORKDIR}/diagnostic_files/
 mkdir -p ${diagf}
 echo "
-INFORMATION:
+Information:
 	Done with FastQC/MultiQC!
 	Generating diagnostic files in ${diagf}
 "
-
-#=======================================================================
-#======================================================================= get diagnostic files
-
-
+#======================================================================= Generate diagnostic files
 #### Undetermined Index Quantification
 index_summary=${diagf}IndexSummary.txt
-echo "INFORMATION:"
+echo "Information:"
 if [ ! -f ${index_summary} ]; then
 	echo "	Creating an index summary file \"${index_summary}\""
 	/secondary/projects/genomicscore/tools/interop-build/src/apps/index-summary . > ${index_summary} # create index Summary for all lanes
@@ -184,10 +195,9 @@ fi
 
 undetermined=${basecalls_dir}Undetermined_L000_R1_001.fastq.gz # check for the L000 file, these need to be in the BaseCall dir
 
-echo "INFORMATION:"
+echo "Information:"
 if [ ! -f $undetermined ]; then
 	echo "	Was going to quantify indexes in $undetermined, but I didn't find this file in ${basecalls_dir}"
-	#~ cat ${messages}notgood2.message
 else
 	for lane in `ls ${basecalls_dir} | grep Undetermined|grep -v L000|cut -d '_' -f3|sort|uniq`; do # get uniq lanes, undetermined gets a file foreach lane
 		
@@ -243,10 +253,5 @@ done
 
 
 
-
-
-
-
-
-echo "INFORMATION:"
+echo "Information:"
 echo "	I'm done demultiplexing...goodbye..." 
