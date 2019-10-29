@@ -128,7 +128,7 @@ echo "	Demultiplexing and L000 file generation is now done!"
 ##### FASTQC on samples
 echo "Information:"
 echo "	FastQC..."
-for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
+for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
 	#Launch FastQC
 	number_of_L000_files=$(ls ${basecalls_dir}${p}|grep _L000_.*.fastq.gz|wc -l) # fastq files only
 	mkdir -p ${basecalls_dir}${p}/FastQC
@@ -161,7 +161,7 @@ fi
 echo "Information:"
 echo "	MultiQC..."
 cd ${basecalls_dir}
-for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
+for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
 	if [ ! -f ${basecalls_dir}${p}/multiqc_report.html ]; then
 		echo "		Doing MultiQC for project ${p}!"
 		cd ${p}/
@@ -242,7 +242,7 @@ fi
 
 
 ### Link in Multiqc files to diagnostics folder
-for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 '^Lane'|grep -v '^Lane'|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
+for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
 	mqc=${basecalls_dir}${p}/multiqc_report.html
 	if [ -f $mqc ]; then
 		ln -sf ${mqc} ${diagf}${p}_multiqc_report.html
