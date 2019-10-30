@@ -28,6 +28,7 @@ Information:
 	RUN NUMBER: ${runnumber}
 	FLOWCELL: ${flowcell}
 "
+#~ exit
 #======================================================================= # Set some parameters based on the machine
 if [ ${machine} == 'FS10000742' ]; then # ISEQ -f12
 	echo "This is an ISEQ run."
@@ -62,7 +63,7 @@ else
 fi
 #======================================================================= Check the sample sheet
 nlanes=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f1|grep -v '^$'|sort|uniq|wc -l)
-n_sample_lane_unique=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f1-2|grep -v '^$'|sort|uniq|wc -l)
+n_sample_lane_unique=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f1-2|grep -v '^$'|grep -v '^,$'|sort|uniq|wc -l)
 n_sample_lane=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f2|grep -v '^$'|sort|wc -l)
 n_uniq_sample_names=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f2|grep -v '^$'|sort|uniq|wc -l) 
 if [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
