@@ -28,30 +28,45 @@ my $sample_counter=1;
 my $nlanes=0;
 my %samples_fail_qc=();
 while(<$in>){
-	if($_=~/^Lane,Sa/){
+	if($_=~/^Lane,Sa/ || $_=~/^Sample_ID,Sa/){ # works with Novaseq, iSeq & NextSeq sample sheets 
 		$trigger=1;
 		next;
 	}
+	if($_=~/^,/){next;} # blanks at the end of a samplesheet
 	if($trigger){
 		my($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description);
 		if($machine eq 'A00426'){ # Novaseq
+			#~ print "NOVASEQ...\n";
 			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
 		}elsif($machine eq 'FS10000742'){ # iSeq
+			#~ print "ISEQ...\n";
 			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Manifest,$GenomeFolder,$Sample_Project,$Description) = split(',',$_);
+		}elsif($machine eq 'NS500653'){ # NextSeq
+			($sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
+			print "NEXTSEQ... sample: $sample\n";
+			$nlanes=4;
 		}else{
-			die print "I don't recognize the machine $machine, wtf?\n";
+			die print "I don't recognize the machine |$machine|, (Not iSeq, NovaSeq, NextSeq) ??? \n";
 		}
 		
-		if(exists $sample_number{$sample}){ # if counted already
-			$files{$Sample_Project}{$sample}{$lane}=$sample_number{$sample};
-		}else{ # if a new sample
-			#~ print "Sample $sample_counter $sample is in project $Sample_Project\n";
+		if($machine ne 'NS500653'){ # If it is not a Nextseq run, then add each lane/sample combination
+			if(exists $sample_number{$sample}){ # if counted already
+				$files{$Sample_Project}{$sample}{$lane}=$sample_number{$sample};
+			}else{ # if a new sample
+				#~ print "Sample $sample_counter $sample is in project $Sample_Project\n";
+				$sample_number{$sample}=$sample_counter;
+				$files{$Sample_Project}{$sample}{$lane}=$sample_number{$sample};
+				$sample_counter++; # increase
+			}
+		}else{ # if it is a Nextseq run, then there is no lane information in the sample sheet, but all samples are on 4 lanes
 			$sample_number{$sample}=$sample_counter;
-			$files{$Sample_Project}{$sample}{$lane}=$sample_number{$sample};
+			for(my $i=1;$i<=$nlanes;$i++){
+				print "Initiating $Sample_Project $sample Lane$i $sample_number{$sample}\n";
+				$files{$Sample_Project}{$sample}{$i}=$sample_number{$sample};
+			}
 			$sample_counter++; # increase
 		}
-		
-		# get lane
+		# get max lanes
 		if($lane>$nlanes){$nlanes=$lane}
 	}
 }
@@ -59,15 +74,20 @@ $sample_counter--;
 
 my $nprojects = scalar keys %files;
 
-# Need to add Undetermined_S0 to the files with $Sample_Project '.'
+# Report some numbers
+print "MERGELANES INFORMATION:\n";
+print "\tReceived $nprojects projects from $samplesheet.\n";
+foreach my $p (keys %files){
+	print "\t\tPROJECT: $p\n";
+}
+
+# Need to add Undetermined_S0 to the files with $Sample_Project '.', but do this AFTER we report the number of projects to minimize confusion
 for(my $l=1;$l<=$nlanes;$l++){
 	$files{'.'}{'Undetermined'}{$l}=0;
 	$files{'.'}{'Undetermined'}{$l}=0;
 }
 
-# Report some numbers
-print "MERGELANES INFORMATION:\n";
-print "\tReceived $nprojects projects from $samplesheet.\n";
+
 print "\tReceived $read2_number_of_cycles read 2 cycles.\n";
 print "\tExpect to merge lanes for $sample_counter samples (not including Undetermined).\n";
 print "\tExpect $nlanes lanes.\n";

@@ -43,7 +43,7 @@ elif [ ${machine} == 'A00426' ]; then # NOVASEQ -f10
 elif [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
 	echo "This is a NEXTSEQ run."
 	project_code_field=9 # 9 for nextseq
-	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2NumberOfCycles>'|sed -e 's/<Read2NumberOfCycles>//'|sed -e 's/<\/Read2NumberOfCycles>//'|sed -e 's/ //g') 
+	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2>'|sed -e 's/<Read2>//'|sed -e 's/<\/Read2>//'|sed -e 's/ //g') 
 	samplesheet_grep='^Sample_ID'
 else
 	echo "Exiting:"
@@ -98,6 +98,8 @@ cd ${basecalls_dir} #Change into the BaseCalls directory
 echo "Information:"
 echo "	Merging ${nlanes} lanes into L000 files"
 mergelanes_cmd="${mergenlanes_script} ${PBS_O_WORKDIR}/SampleSheet.csv ${read2_number_of_cycles} ${machine} ${PBS_O_WORKDIR}/"
+#~ echo $mergelanes_cmd
+#~ exit
 perl ${mergelanes_cmd}
 
 mergelanes_override=${PBS_O_WORKDIR}/mergelanes.override # if you still want to proceed (e.g. some samples not supposed to be in the samplesheet.csv)
