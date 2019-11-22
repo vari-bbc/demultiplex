@@ -66,7 +66,7 @@ cd ${flowcell}
 for sample_dir in `ls`; do
 	# do fastqc
 	echo "FastQC on ${sample_dir}"
-	#~ fastqc -t 16 ${sample_dir}/*.fastq.gz
+	fastqc -t 16 ${sample_dir}/*.fastq.gz
 
 	mv ${sample_dir}/*.zip ../FastQC/
 	mv ${sample_dir}/*.html ../FastQC/
