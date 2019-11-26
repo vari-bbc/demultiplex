@@ -12,7 +12,7 @@ OPTIONAL: change the email in demultiplex/bcl2fastq.sh file (#PBS -M your.email@
 
 If this doesn't work, check the demultiplex_workflow.[oe]JOB.ID files that are in the run directory.
 
-If merging lanes failed (e.g. some samples did not get demultiplexed properly), but you still want to proceed with the rest of the pipeline, then in the run directory type 'touch mergelanes.override' <- this will create a file 'mergelanes.override' that forces the pipeline to continue with the remaining samples.
+If merging lanes failed (e.g. some samples did not get demultiplexed properly), but you still want to proceed with the rest of the pipeline, then in the run directory type 'touch mergelanes.override' <- this will create a file 'mergelanes.override' that forces the pipeline to continue with the remaining samples. You can specify this before the run if you want.
 
 # demultiplex for sc-atac
 
