@@ -12,6 +12,7 @@ OPTIONAL: change the email in demultiplex/bcl2fastq.sh file (#PBS -M your.email@
 
 If this doesn't work, check the demultiplex_workflow.[oe]JOB.ID files that are in the run directory.
 
+If merging lanes failed but you still want to proceed with fastqc/multiqc, then in the run directory type 'touch mergelanes.override' <- this will create an override flag
 
 # demultiplex for sc-atac
 
