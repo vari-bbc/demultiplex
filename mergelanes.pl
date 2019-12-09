@@ -40,7 +40,7 @@ while(<$in>){
 			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
 		}elsif($machine eq 'FS10000742'){ # iSeq
 			#~ print "ISEQ...\n";
-			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Manifest,$GenomeFolder,$Sample_Project,$Description) = split(',',$_);
+			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
 		}elsif($machine eq 'NS500653'){ # NextSeq
 			($sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
 			print "NEXTSEQ... sample: $sample\n";
