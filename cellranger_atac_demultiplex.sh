@@ -18,7 +18,7 @@ export PATH=$PATH:/secondary/projects/genomicscore/tools/bcl2fastq/default/bin #
 module load bbc/fastqc/fastqc-0.11.8
 
 #Export multiqc
-export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best option but I could not install multiqc as a module
+module load bbc/multiqc/multiqc-1.8
 
 #Load cellranger
 module load bbc/cellranger-atac/cellranger-atac-1.1.0
