@@ -20,7 +20,7 @@ cd ${PBS_O_WORKDIR} #Change into the run directory
 module load bbc/pigz/pigz-2.4 
 
 if [[ -d "$jiracode" ]]; then
-    tar –vcf - $jiracode | pigz -p ${PBS_NUM_PPN} > ${jiracode}.tar.gz
+    tar -vcf - $jiracode | pigz -p ${PBS_NUM_PPN} > ${jiracode}.tar.gz
     md5sum ${jiracode}.tar.gz > ${jiracode}.txt
 else
     echo "${jiracode} directory does not exist in ${PBS_O_WORKDIR}"
