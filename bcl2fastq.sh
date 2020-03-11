@@ -128,15 +128,18 @@ echo "Information:"
 echo "	Demultiplexing and L000 file generation is now done!"
 
 #======================================================================= Fastqc / Multiqc
-##### FASTQC on samples
+##### FASTQC and FastQ screen on samples
 echo "Information:"
-echo "	FastQC..."
+echo "	FastQC and Fastq_screen..."
+
+module load bbc/fastq_screen/fastq_screen-0.14.0
+
 for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
-	#Launch FastQC
+	#Launch FastQC and fastq screen
 	number_of_L000_files=$(ls ${basecalls_dir}${p}|grep _L000_.*.fastq.gz|wc -l) # fastq files only
 	mkdir -p ${basecalls_dir}${p}/FastQC
 	if [ ${number_of_L000_files} -gt 0 ]; then
-		echo "		Launching FastQC on merged L000 files for project ${p}"
+		echo "		Launching FastQC and Fastq_screen on merged L000 files for project ${p}"
 		for s in `ls ${basecalls_dir}${p}/|grep _L000_.*.fastq.gz|grep -v Undetermined`; do 
 			f=$(sed -e 's/.fastq.gz/_fastqc.html/' <<< $s)
 			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
@@ -146,12 +149,20 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 			else
 				echo "			FastQC with sample file ${s} exists (${f})"
 			fi
+			f=$(sed -e 's/.fastq.gz/_screen.html/' <<< $s)
+			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
+				echo "			Fastq_screen with sample file ${s} because ${f} not found"
+				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
+				fastq_screen --threads 16 --outdir ${basecalls_dir}${p}/FastQC ${basecalls_dir}${p}/${s}
+			else
+				echo "			Fastq_screen with sample file ${s} exists (${f})"
+			fi
 		done
 	else
-		echo "	There are 0 L000 files to do FASTQC on ?!?!?!"
+		echo "	There are 0 L000 files to do FASTQC and Fastq_screen on ?!?!?!"
 	fi
 done
-##### FASTQC on Undetermined
+##### FASTQC and Fastq_screen on Undetermined
 echo "Information:"
 if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_fastqc.html ]; then
 	cd ${basecalls_dir}
@@ -159,6 +170,14 @@ if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_fastqc.html ]; then
 	/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc -t 16 *_L000_*
 else
 	echo "	FastQC on the Undetermined exists!"
+fi
+
+if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_screen.html ]; then
+	cd ${basecalls_dir}
+	echo "	Fastq_screen on the Undetermined."
+	fastq_screen --threads 16 *_L000_*
+else
+	echo "	Fastq_screen on the Undetermined exists!"
 fi
 ##### MULTIQC
 echo "Information:"
