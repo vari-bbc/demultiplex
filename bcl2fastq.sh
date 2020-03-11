@@ -169,7 +169,8 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 		echo "		Doing MultiQC for project ${p}!"
 		cd ${p}/
 		ln -sf ${basecalls_dir}Undetermined* .
-		export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best, needs to be a module
+		#export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best, needs to be a module
+        module load bbc/multiqc/multiqc-1.8
 		multiqc .
 		cd ..
 	else
