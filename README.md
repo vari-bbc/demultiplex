@@ -4,7 +4,7 @@ Directions:
 
 Go to the run directory.
 
-```git clone https://github.com/ianbed/demultiplex.git```
+```git clone https://github.com/vari-bbc/demultiplex.git```
 
 OPTIONAL: change the email in demultiplex/bcl2fastq.sh file (#PBS -M your.email@vai.org)
 
