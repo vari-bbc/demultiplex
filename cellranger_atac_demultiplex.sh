@@ -1,6 +1,6 @@
 #PBS -l walltime=120:00:00
 #PBS -l mem=90gb
-#PBS -l nodes=1:ppn=8
+#PBS -l nodes=1:ppn=16
 #PBS -M your.email@vai.org
 #PBS -m abe
 #PBS -N sc-atac-demux
@@ -56,7 +56,7 @@ cd ${demux_dir}${flowcell}/outs/fastq_path/
 mkdir -p FastQC
 
 if [ ! -f FastQC/Undetermined_S0_L001_I1_001_fastqc.zip ]; then
-	fastqc -t 16 Undetermined*
+	fastqc -t ${PBS_NUM_PPN} Undetermined*
 	mv *.zip FastQC
 	mv *.html FastQC
 fi
@@ -67,7 +67,7 @@ cd ${flowcell}
 for sample_dir in `ls`; do
 	# do fastqc
 	echo "FastQC on ${sample_dir}"
-	fastqc -t 16 ${sample_dir}/*.fastq.gz
+	fastqc -t ${PBS_NUM_PPN} ${sample_dir}/*.fastq.gz
 
 	mv ${sample_dir}/*.zip ../FastQC/
 	mv ${sample_dir}/*.html ../FastQC/

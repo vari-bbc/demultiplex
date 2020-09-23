@@ -1,6 +1,6 @@
 #PBS -l walltime=100:00:00
 #PBS -l mem=90gb
-#PBS -l nodes=1:ppn=8
+#PBS -l nodes=1:ppn=16
 #PBS -M your.email@vai.org
 #PBS -m abe
 #PBS -N demultiplex_workflow
@@ -146,7 +146,7 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
 				echo "			FastQC with sample file ${s} because ${f} not found"
 				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-				/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/${s}
+				/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t ${PBS_NUM_PPN} ${basecalls_dir}${p}/${s}
 			else
 				echo "			FastQC with sample file ${s} exists (${f})"
 			fi
@@ -154,7 +154,7 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
 				echo "			Fastq_screen with sample file ${s} because ${f} not found"
 				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-				fastq_screen --threads 16 --outdir ${basecalls_dir}${p}/FastQC ${basecalls_dir}${p}/${s}
+				fastq_screen --threads ${PBS_NUM_PPN} --outdir ${basecalls_dir}${p}/FastQC ${basecalls_dir}${p}/${s}
 			else
 				echo "			Fastq_screen with sample file ${s} exists (${f})"
 			fi
@@ -168,7 +168,7 @@ echo "Information:"
 if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_fastqc.html ]; then
 	cd ${basecalls_dir}
 	echo "	FastQC on the Undetermined."
-	/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc -t 16 *_L000_*
+	/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc -t ${PBS_NUM_PPN} *_L000_*
 else
 	echo "	FastQC on the Undetermined exists!"
 fi
@@ -176,7 +176,7 @@ fi
 if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_screen.html ]; then
 	cd ${basecalls_dir}
 	echo "	Fastq_screen on the Undetermined."
-	fastq_screen --threads 16 *_L000_*
+	fastq_screen --threads ${PBS_NUM_PPN} *_L000_*
 else
 	echo "	Fastq_screen on the Undetermined exists!"
 fi
