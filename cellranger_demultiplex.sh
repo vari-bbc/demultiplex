@@ -4,6 +4,7 @@
 #PBS -M your.email@vai.org
 #PBS -m abe
 #PBS -N 10x-demux
+#PBS -W umask=0022
 
 #Change into the directory the script was launched from
 demux_dir=${PBS_O_WORKDIR}/

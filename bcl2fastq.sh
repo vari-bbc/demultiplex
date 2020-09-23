@@ -4,6 +4,7 @@
 #PBS -M your.email@vai.org
 #PBS -m abe
 #PBS -N demultiplex_workflow
+#PBS -W umask=0022
 
 messages=/secondary/projects/genomicscore/tools/boilerplate_demux/novaseq/messages/ # Larry's message files here
 

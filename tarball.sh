@@ -3,7 +3,7 @@
 #PBS -l nodes=1:ppn=8
 #PBS -m abe
 #PBS -N tarball
-
+#PBS -W umask=0022
 
 # usage: qsub -q genomics demultiplex/tarball.sh -M your.email@vai.org -F "jiracode"
 if [ -z "$1" ]
