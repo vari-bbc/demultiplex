@@ -1,6 +1,6 @@
 #PBS -l walltime=100:00:00
 #PBS -l mem=90gb
-#PBS -l nodes=1:ppn=16
+#PBS -l nodes=1:ppn=8
 #PBS -M your.email@vai.org
 #PBS -m abe
 #PBS -N demultiplex_workflow
