@@ -1,10 +1,11 @@
 #PBS -l walltime=100:00:00
 #PBS -l mem=90gb
 #PBS -l nodes=1:ppn=8
-#PBS -M your.email@vai.org
 #PBS -m abe
 #PBS -N demultiplex_workflow
 #PBS -W umask=0022
+
+date
 
 messages=/secondary/projects/genomicscore/tools/boilerplate_demux/novaseq/messages/ # Larry's message files here
 
@@ -86,7 +87,7 @@ demux_flag=${PBS_O_WORKDIR}/bcl2fastq.done
 if [ ! -f ${demux_flag} ]; then
 	echo "Information:"
 	echo "	Demultiplexing with bcl2fastq..." 
-	/secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> bcl2fastq.log # Launch bcl2fastq, needs to be made a module
+	time /secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> bcl2fastq.log # Launch bcl2fastq, needs to be made a module
 	# should write a check to qc if demultiplexing finished
 	touch ${demux_flag}
 else
@@ -101,7 +102,7 @@ echo "	Merging ${nlanes} lanes into L000 files"
 mergelanes_cmd="${mergenlanes_script} ${PBS_O_WORKDIR}/SampleSheet.csv ${read2_number_of_cycles} ${machine} ${PBS_O_WORKDIR}/"
 #~ echo $mergelanes_cmd
 #~ exit
-perl ${mergelanes_cmd}
+time perl ${mergelanes_cmd}
 
 mergelanes_override=${PBS_O_WORKDIR}/mergelanes.override # if you still want to proceed (e.g. some samples not supposed to be in the samplesheet.csv)
 mergelanes_flag=${PBS_O_WORKDIR}/mergelanes.failed
@@ -146,7 +147,7 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
 				echo "			FastQC with sample file ${s} because ${f} not found"
 				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-				/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t ${PBS_NUM_PPN} ${basecalls_dir}${p}/${s}
+				time /secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t ${PBS_NUM_PPN} ${basecalls_dir}${p}/${s}
 			else
 				echo "			FastQC with sample file ${s} exists (${f})"
 			fi
@@ -154,7 +155,7 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
 				echo "			Fastq_screen with sample file ${s} because ${f} not found"
 				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-				fastq_screen --threads ${PBS_NUM_PPN} --outdir ${basecalls_dir}${p}/FastQC ${basecalls_dir}${p}/${s}
+				time fastq_screen --threads ${PBS_NUM_PPN} --outdir ${basecalls_dir}${p}/FastQC ${basecalls_dir}${p}/${s}
 			else
 				echo "			Fastq_screen with sample file ${s} exists (${f})"
 			fi
@@ -168,7 +169,7 @@ echo "Information:"
 if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_fastqc.html ]; then
 	cd ${basecalls_dir}
 	echo "	FastQC on the Undetermined."
-	/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc -t ${PBS_NUM_PPN} *_L000_*
+	time /secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc -t ${PBS_NUM_PPN} *_L000_*
 else
 	echo "	FastQC on the Undetermined exists!"
 fi
@@ -176,7 +177,7 @@ fi
 if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_screen.html ]; then
 	cd ${basecalls_dir}
 	echo "	Fastq_screen on the Undetermined."
-	fastq_screen --threads ${PBS_NUM_PPN} *_L000_*
+	time fastq_screen --threads ${PBS_NUM_PPN} *_L000_*
 else
 	echo "	Fastq_screen on the Undetermined exists!"
 fi
@@ -198,6 +199,8 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 	fi
 done
 
+date
+
 cd $PBS_O_WORKDIR
 diagf=${PBS_O_WORKDIR}/diagnostic_files/
 mkdir -p ${diagf}
@@ -206,6 +209,9 @@ Information:
 	Done with FastQC/MultiQC!
 	Generating diagnostic files in ${diagf}
 "
+
+date 
+
 #======================================================================= Generate diagnostic files
 #### Undetermined Index Quantification
 index_summary=${diagf}IndexSummary.txt
@@ -218,6 +224,8 @@ else
 fi
 
 undetermined=${basecalls_dir}Undetermined_L000_R1_001.fastq.gz # check for the L000 file, these need to be in the BaseCall dir
+
+date
 
 echo "Information:"
 if [ ! -f $undetermined ]; then
@@ -252,6 +260,8 @@ else
 	done
 fi
 
+date
+
 ### PercentOccupiedByLane
 pof=${diagf}PercentOccupiedByLane.csv # percent occupied file
 plot_by_lane=/secondary/projects/genomicscore/tools/interop-build/src/apps/plot_by_lane
@@ -264,6 +274,7 @@ else
 	echo "	Percent occupied by lane file (${pof}) exists"
 fi
 
+date 
 
 ### Link in Multiqc files to diagnostics folder
 for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
@@ -279,3 +290,6 @@ done
 
 echo "Information:"
 echo "	I'm done demultiplexing...goodbye..." 
+
+
+date
