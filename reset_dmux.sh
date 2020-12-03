@@ -11,7 +11,15 @@ projects=$(perl -F/,/ -lane 'print qq/$ENV{'basecalls_dir'}$F[9]/ if ($F[9] =~ /
 
 target_files="$projects bcl2fastq.done bcl2fastq.log diagnostic_files ${basecalls_dir}Undetermined* ${basecalls_dir}Stats* ${basecalls_dir}Reports*"
 
-ls $target_files
+#ls $target_files
+
+if ls $target_files >/dev/null 2>&1; then
+  ls --color $target_files
+else
+  echo "ERROR: Some dmux output files do not exist. In case you are trying to delete something unintentionally, this script will exit now."
+  ls $target_files
+  exit 1 # should error out from above line but putting this here for extra security
+fi
 
 while true; do
     read -p "Do you wish to delete the above files?" yn
