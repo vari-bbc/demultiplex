@@ -9,7 +9,7 @@ export basecalls_dir
 
 projects=$(perl -F/,/ -lane 'print qq/$ENV{'basecalls_dir'}$F[9]/ if ($F[9] =~ /^\S/ && $F[9] ne q/Sample_Project/)' SampleSheet.csv  | sort | uniq)
 
-target_files="$projects bcl2fastq.done bcl2fastq.log diagnostic_files ${basecalls_dir}Undetermined* ${basecalls_dir}Stats ${basecalls_dir}Reports"
+target_files="$projects bcl2fastq.done bcl2fastq.log diagnostic_files ${basecalls_dir}Undetermined* ${basecalls_dir}Stats* ${basecalls_dir}Reports*"
 
 ls $target_files
 
