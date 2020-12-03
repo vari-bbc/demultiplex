@@ -177,7 +177,7 @@ fi
 if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_screen.html ]; then
 	cd ${basecalls_dir}
 	echo "	Fastq_screen on the Undetermined."
-	time fastq_screen --threads ${PBS_NUM_PPN} *_L000_*
+	time fastq_screen --threads ${PBS_NUM_PPN} *_L000_*fastq.gz
 else
 	echo "	Fastq_screen on the Undetermined exists!"
 fi
