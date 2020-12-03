@@ -118,19 +118,6 @@ snakemake \
 echo "bcl2fastq snakemake workflow done. $(date)" >&1
 echo "bcl2fastq snakemake workflow done. $(date)" >&2
 
-
-
-#demux_flag=${PBS_O_WORKDIR}/bcl2fastq.done
-#if [ ! -f ${demux_flag} ]; then
-#	echo "Information:"
-#	echo "	Demultiplexing with bcl2fastq..." 
-#	time /secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> bcl2fastq.log # Launch bcl2fastq, needs to be made a module
-#	# should write a check to qc if demultiplexing finished
-#	touch ${demux_flag}
-#else
-#	echo "Information:"
-#	echo "	I'm not demultiplexing with bcl2fastq (found ${demux_flag} indicating it has been done already)."
-#fi
 #======================================================================= Mergelanes
 cd ${basecalls_dir} #Change into the BaseCalls directory
 
@@ -171,7 +158,6 @@ echo "	Demultiplexing and L000 file generation is now done!"
 echo "Information:"
 echo "	FastQC and Fastq_screen..."
 
-# --config yourparam=1.5
 echo "Start fastqc and screen snakemake workflow. $(date)" >&1
 echo "Start fastqc and screen snakemake workflow. $(date)" >&2
 
@@ -194,53 +180,6 @@ snakemake \
 echo "fastqc and screen snakemake workflow done. $(date)" >&1
 echo "fastqc and screen snakemake workflow done. $(date)" >&2
 
-#module load bbc/fastq_screen/fastq_screen-0.14.0
-#
-#for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
-#	#Launch FastQC and fastq screen
-#	number_of_L000_files=$(ls ${basecalls_dir}${p}|grep _L000_.*.fastq.gz|wc -l) # fastq files only
-#	mkdir -p ${basecalls_dir}${p}/FastQC
-#	if [ ${number_of_L000_files} -gt 0 ]; then
-#		echo "		Launching FastQC and Fastq_screen on merged L000 files for project ${p}"
-#		for s in `ls ${basecalls_dir}${p}/|grep _L000_.*.fastq.gz|grep -v Undetermined`; do 
-#			f=$(sed -e 's/.fastq.gz/_fastqc.html/' <<< $s)
-#			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
-#				echo "			FastQC with sample file ${s} because ${f} not found"
-#				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-#				time /secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t ${PBS_NUM_PPN} ${basecalls_dir}${p}/${s}
-#			else
-#				echo "			FastQC with sample file ${s} exists (${f})"
-#			fi
-#			f=$(sed -e 's/.fastq.gz/_screen.html/' <<< $s)
-#			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
-#				echo "			Fastq_screen with sample file ${s} because ${f} not found"
-#				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-#				time fastq_screen --threads ${PBS_NUM_PPN} --outdir ${basecalls_dir}${p}/FastQC ${basecalls_dir}${p}/${s}
-#			else
-#				echo "			Fastq_screen with sample file ${s} exists (${f})"
-#			fi
-#		done
-#	else
-#		echo "	There are 0 L000 files to do FASTQC and Fastq_screen on ?!?!?!"
-#	fi
-#done
-###### FASTQC and Fastq_screen on Undetermined
-#echo "Information:"
-#if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_fastqc.html ]; then
-#	cd ${basecalls_dir}
-#	echo "	FastQC on the Undetermined."
-#	time /secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc -t ${PBS_NUM_PPN} *_L000_*
-#else
-#	echo "	FastQC on the Undetermined exists!"
-#fi
-#
-#if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_screen.html ]; then
-#	cd ${basecalls_dir}
-#	echo "	Fastq_screen on the Undetermined."
-#	time fastq_screen --threads ${PBS_NUM_PPN} *_L000_*fastq.gz
-#else
-#	echo "	Fastq_screen on the Undetermined exists!"
-#fi
 
 ##### MULTIQC
 echo "Information:"
