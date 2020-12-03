@@ -5,7 +5,7 @@
 #PBS -N demultiplex_workflow
 #PBS -W umask=0022
 
-date
+echo "Pipeline started: $(date)"
 
 messages=/secondary/projects/genomicscore/tools/boilerplate_demux/novaseq/messages/ # Larry's message files here
 
@@ -126,7 +126,7 @@ echo "	Merging ${nlanes} lanes into L000 files"
 mergelanes_cmd="${mergenlanes_script} ${PBS_O_WORKDIR}/SampleSheet.csv ${read2_number_of_cycles} ${machine} ${PBS_O_WORKDIR}/"
 #~ echo $mergelanes_cmd
 #~ exit
-time perl ${mergelanes_cmd}
+perl ${mergelanes_cmd}
 
 mergelanes_override=${PBS_O_WORKDIR}/mergelanes.override # if you still want to proceed (e.g. some samples not supposed to be in the samplesheet.csv)
 mergelanes_flag=${PBS_O_WORKDIR}/mergelanes.failed
@@ -199,7 +199,6 @@ for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|g
 	fi
 done
 
-date
 
 cd $PBS_O_WORKDIR
 diagf=${PBS_O_WORKDIR}/diagnostic_files/
@@ -225,7 +224,6 @@ fi
 
 undetermined=${basecalls_dir}Undetermined_L000_R1_001.fastq.gz # check for the L000 file, these need to be in the BaseCall dir
 
-date
 
 echo "Information:"
 if [ ! -f $undetermined ]; then
@@ -260,7 +258,6 @@ else
 	done
 fi
 
-date
 
 ### PercentOccupiedByLane
 pof=${diagf}PercentOccupiedByLane.csv # percent occupied file
@@ -290,6 +287,4 @@ done
 
 echo "Information:"
 echo "	I'm done demultiplexing...goodbye..." 
-
-
-date
+echo "Pipeline run to completion: $(date)"
