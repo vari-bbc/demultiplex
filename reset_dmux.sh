@@ -14,12 +14,16 @@ target_files="$projects bcl2fastq.done bcl2fastq.log diagnostic_files ${basecall
 if ls $target_files >/dev/null 2>&1; then
   echo "Target files found."
 else
+  echo ""
   echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
   echo "WARNING: Some dmux output files do not exist. Double-check that you are in a dmux directory."
   echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+  echo ""
 fi
 
-ls --color $target_files
+ls --color $target_files || true
+
+echo ""
 
 while true; do
     read -p "Do you wish to delete the above files?" yn
