@@ -8,9 +8,6 @@ from snakemake.utils import validate, min_version
 ##### set minimum snakemake version #####
 min_version("5.28.0")
 
-
-##### load config and sample sheets #####
-
 # https://stackoverflow.com/questions/10717504/is-it-possible-to-use-read-csv-to-read-only-specific-lines
 s = io.StringIO()
 read_lens = []
@@ -52,21 +49,23 @@ assert (0 < len(read_lens) < 3), "Number of read lengths parsed not 1 or 2. It w
 paired_end = True if len(read_lens) == 2 else False
 
 if 'Lane' in samples.columns:
+    lanes = pd.unique(samples['Lane'])
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),
-    undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=pd.unique(samples['Lane']))
+    undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes)
 else:
     lanes = [1,2,3,4] # if no Lane column in SampleSheet.csv, assume it is NextSeq and that each sample spread over 4 lanes.
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),
     undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes)
 
 
-fastqc_and_screen_out = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']) + expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen'])
+#fastqc_and_screen_out = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']) + expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen'])
 
 rule all:
     input:
         sample_fqs,
         undetermined_fqs,
-        fastqc_and_screen_out if "run_qc" in config else [],
+        expand("Data/Intensities/BaseCalls/{project}/multiqc_report.html", project=pd.unique(samples['Sample_Project'])) #if "run_qc" in config else [],
+        #fastqc_and_screen_out if "run_qc" in config else [],
         #expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         #expand("Data/Intensities/BaseCalls/Undetermined_S0_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         #expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1])
@@ -90,50 +89,132 @@ rule bcl2fastq:
     benchmark:
         "snakemake_job_logs/benchmarks/bcl2fastq/benchmark.txt"
     envmodules:
+        "bbc/bcl2fastq2/bcl2fastq2-2.20.0"
     threads: 8
     resources:
         mem_gb = 180
     shell:
         """
-        /secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> {output.log}
+        bcl2fastq &> {output.log}
 
         touch {output.done}
         """
 
-#rule multiqc:
-#    """
-#    Make multiQC report.
-#    """
-#    input:
-#        expand("analysis/fastq_screen/{sample.sample}{read}screen{file_ext}", sample=samples.itertuples(), read=["_R1_","_R2_"], file_ext=[".html",".txt"]),
-#        expand("analysis/fastqc/{sample.sample}{read}fastqc{file_ext}", sample=samples.itertuples(), read=["_R1_","_R2_"], file_ext=[".html",".zip"]),
-#
-#    output:
-#        "analysis/multiqc/multiqc_report.html"
-#    log:
-#        stdout="logs/multiqc/multiqc.o",
-#        stderr="logs/multiqc/multiqc.e",
-#    benchmark:
-#        "benchmarks/multiqc/multiqc.txt"
-#    params:
-#        "analysis/fastqc/",
-#        "analysis/trim_galore/",
-#        "analysis/fastq_screen/",
-#    threads: 1
-#    resources:
-#        mem_gb=32
-#    envmodules:
-#        "bbc/multiqc/multiqc-1.8"
-#    shell:
-#        """
-#        multiqc -f {params} \
-#        -o analysis/multiqc \
-#        -n multiqc_report.html \
-#        --cl-config 'max_table_rows: 999999'
-#
-#        """
-#
-#
+def get_all_lanes_fqs(wildcards):
+    if 'Lane' in samples.columns:
+        fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read)
+    else:
+        fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read, lane=lanes)
+
+    return fqs
+
+rule cat_fqs:
+    """
+    Merge lanes for sample fastq.gz files.
+    """
+    input:
+        get_all_lanes_fqs
+        
+    output:
+        "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz"
+    params:
+    log:
+        stdout="snakemake_job_logs/cat_fqs/{project}/{sample}_R{read}.o",
+        stderr="snakemake_job_logs/cat_fqs/{project}/{sample}_R{read}.e"
+    benchmark:
+        "snakemake_job_logs/benchmarks/cat_fqs/{project}/{sample}_R{read}.txt"
+    envmodules:
+    threads: 1
+    resources:
+        mem_gb = 22
+    run:
+        if len(input) > 1:
+            shell("cat {input} > {output}")
+        else:
+            shell("ln -sr {input} {output}")
+
+rule cat_fqs_undetermined:
+    """
+    Merge lanes for undetermined fastq.gz files.
+    """
+    input:
+        expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{{read}}_001.fastq.gz", lane=lanes)
+    output:
+        "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz"
+    params:
+    log:
+        stdout="snakemake_job_logs/cat_fqs_undetermined/Undetermined_L000_R{read}.o",
+        stderr="snakemake_job_logs/cat_fqs_undetermined/Undetermined_L000_R{read}.e"
+    benchmark:
+        "snakemake_job_logs/benchmarks/cat_fqs_undetermined/Undetermined_L000_R{read}.txt"
+    envmodules:
+    threads: 1
+    resources:
+        mem_gb = 22
+    run:
+        if len(input) > 1:
+            shell("cat {input} > {output}")
+        else:
+            shell("ln -sr {input} {output}")
+
+rule symlink_undet_to_each_proj:
+    """
+    Symlink Undetermined files to project directories.
+    """
+    input:
+        expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001{suffix}", read=[1,2] if paired_end else [1], suffix=['_fastqc.html','_screen.html','_fastqc.zip','_screen.txt','.fastq.gz']),
+        expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes),
+    output:
+        expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001{suffix}", read=[1,2] if paired_end else [1], suffix=['_fastqc.html','_screen.html','_fastqc.zip','_screen.txt','.fastq.gz']),
+        expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes),
+    log:
+        stdout="snakemake_job_logs/symlink_undet_to_each_proj/{project}.o",
+        stderr="snakemake_job_logs/symlink_undet_to_each_proj/{project}.e"
+    benchmark:
+        "snakemake_job_logs/benchmarks/symlink_undet_to_each_proj/{project}.txt"
+    params:
+        project = "{project}"
+    threads: 1
+    resources:
+        mem_gb=32
+    envmodules:
+    shell:
+        """
+        ln -sr Data/Intensities/BaseCalls/Undetermined* Data/Intensities/BaseCalls/{params.project}
+
+        """
+
+
+rule multiqc:
+    """
+    Make multiQC report.
+    """
+    input:
+        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+        expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+    output:
+        "Data/Intensities/BaseCalls/{project}/multiqc_report.html",
+        directory("Data/Intensities/BaseCalls/{project}/multiqc_data")
+    log:
+        stdout="snakemake_job_logs/multiqc/{project}.o",
+        stderr="snakemake_job_logs/multiqc/{project}.e",
+    benchmark:
+        "snakemake_job_logs/benchmarks/multiqc/{project}.txt"
+    params:
+        project_dir="Data/Intensities/BaseCalls/{project}/"
+    threads: 1
+    resources:
+        mem_gb=32
+    envmodules:
+        "bbc/multiqc/multiqc-1.8"
+    shell:
+        """
+        multiqc -f {params.project_dir} \
+        -o {params.project_dir}
+
+        """
+
+
 rule fastqc:
     """
     Run fastqc for merged (across lanes) sample files.

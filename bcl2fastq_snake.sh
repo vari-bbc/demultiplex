@@ -93,20 +93,22 @@ module load $snakemake_module
 logs_dir="snakemake_job_logs/snakemake_runs"
 [[ -d $logs_dir ]] || mkdir -p $logs_dir
 
-#snakemake --snakefile 'Snakefile' --dag | dot -Tpng > $logs_dir/dag_${PBS_JOBID}.png
-#snakemake --snakefile 'Snakefile' --filegraph | dot -Tpng > $logs_dir/filegraph_${PBS_JOBID}.png
-#snakemake --snakefile 'Snakefile' --rulegraph | dot -Tpng > $logs_dir/rulegraph_${PBS_JOBID}.png
+snakefile="demultiplex/bcl2fastq_snake/Snakefile"
 
-echo "Start bcl2fastq snakemake workflow. $(date)" >&1
-echo "Start bcl2fastq snakemake workflow. $(date)" >&2
+snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${PBS_JOBID}.png
+snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${PBS_JOBID}.png
+snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${PBS_JOBID}.png
+
+echo "Start snakemake workflow. $(date)" >&1
+echo "Start snakemake workflow. $(date)" >&2
 
 snakemake \
 -p \
 --latency-wait 20 \
---snakefile 'demultiplex/bcl2fastq_snake/Snakefile' \
+--snakefile $snakefile \
 --use-envmodules \
 --jobs 100 \
---cluster "ssh ${PBS_O_LOGNAME}@submit 'module load snakemake_module; cd ${PBS_O_WORKDIR}; qsub \
+--cluster "ssh ${PBS_O_LOGNAME}@submit 'module load $snakemake_module; cd ${PBS_O_WORKDIR}; qsub \
 -q ${PBS_O_QUEUE} \
 -V \
 -l nodes=1:ppn={threads} \
@@ -115,90 +117,8 @@ snakemake \
 -o {log.stdout} \
 -e {log.stderr}'"
 
-echo "bcl2fastq snakemake workflow done. $(date)" >&1
-echo "bcl2fastq snakemake workflow done. $(date)" >&2
-
-#======================================================================= Mergelanes
-cd ${basecalls_dir} #Change into the BaseCalls directory
-
-echo "Information:"
-echo "	Merging ${nlanes} lanes into L000 files"
-mergelanes_cmd="${mergenlanes_script} ${PBS_O_WORKDIR}/SampleSheet.csv ${read2_number_of_cycles} ${machine} ${PBS_O_WORKDIR}/"
-#~ echo $mergelanes_cmd
-#~ exit
-perl ${mergelanes_cmd}
-
-mergelanes_override=${PBS_O_WORKDIR}/mergelanes.override # if you still want to proceed (e.g. some samples not supposed to be in the samplesheet.csv)
-mergelanes_flag=${PBS_O_WORKDIR}/mergelanes.failed
-if [ -e ${mergelanes_flag} ]; then
-	if [ ! -e ${mergelanes_override} ]; then
-		echo "Information:"
-		echo "	Failing because the mergelanes failed"
-		echo "Information:"
-		echo "	To diagnose the error, run \"${mergelanes_cmd}\""
-		echo "	Once the error is fixed remove ${mergelanes_flag} and resubmit the demultiplexing job." 
-		exit
-	else
-		echo "Information:"
-		echo "	Mergelanes FAILED, but I received an override"
-	fi
-else
-	echo "Information:"
-	echo "	Mergelanes PASS! (did not find ${mergelanes_flag}"
-fi
-
-
-cd $PBS_O_WORKDIR
-
-echo "Information:"
-echo "	Demultiplexing and L000 file generation is now done!"
-
-#======================================================================= Fastqc / Multiqc
-##### FASTQC and FastQ screen on samples
-echo "Information:"
-echo "	FastQC and Fastq_screen..."
-
-echo "Start fastqc and screen snakemake workflow. $(date)" >&1
-echo "Start fastqc and screen snakemake workflow. $(date)" >&2
-
-snakemake \
--p \
---latency-wait 20 \
---snakefile 'demultiplex/bcl2fastq_snake/Snakefile' \
---use-envmodules \
---jobs 100 \
---config run_qc=True \
---cluster "ssh ${PBS_O_LOGNAME}@submit 'module load snakemake_module; cd ${PBS_O_WORKDIR}; qsub \
--q ${PBS_O_QUEUE} \
--V \
--l nodes=1:ppn={threads} \
--l mem={resources.mem_gb}gb \
--l walltime=100:00:00 \
--o {log.stdout} \
--e {log.stderr}'"
-
-echo "fastqc and screen snakemake workflow done. $(date)" >&1
-echo "fastqc and screen snakemake workflow done. $(date)" >&2
-
-
-##### MULTIQC
-echo "Information:"
-echo "	MultiQC..."
-cd ${basecalls_dir}
-for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
-	if [ ! -f ${basecalls_dir}${p}/multiqc_report.html ]; then
-		echo "		Doing MultiQC for project ${p}!"
-		cd ${p}/
-		ln -sf ${basecalls_dir}Undetermined* .
-		#export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best, needs to be a module
-        module load bbc/multiqc/multiqc-1.8
-		multiqc .
-		cd ..
-	else
-		echo "		Not doing multiqc for project ${p} because the report exists."
-	fi
-done
-
+echo "snakemake workflow done. $(date)" >&1
+echo "snakemake workflow done. $(date)" >&2
 
 cd $PBS_O_WORKDIR
 diagf=${PBS_O_WORKDIR}/diagnostic_files/
@@ -207,9 +127,7 @@ echo "
 Information:
 	Done with FastQC/MultiQC!
 	Generating diagnostic files in ${diagf}
-"
-
-date 
+" 
 
 #======================================================================= Generate diagnostic files
 #### Undetermined Index Quantification
@@ -271,7 +189,6 @@ else
 	echo "	Percent occupied by lane file (${pof}) exists"
 fi
 
-date 
 
 ### Link in Multiqc files to diagnostics folder
 for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
