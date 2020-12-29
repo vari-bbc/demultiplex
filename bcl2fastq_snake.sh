@@ -114,6 +114,7 @@ snakemake \
 -l nodes=1:ppn={threads} \
 -l mem={resources.mem_gb}gb \
 -l walltime=100:00:00 \
+-W umask=0022 \
 -o {log.stdout} \
 -e {log.stderr}'"
 
