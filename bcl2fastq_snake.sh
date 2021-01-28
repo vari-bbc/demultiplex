@@ -1,6 +1,6 @@
 #PBS -l walltime=100:00:00
-#PBS -l mem=90gb
-#PBS -l nodes=1:ppn=8
+#PBS -l mem=32gb
+#PBS -l nodes=1:ppn=1
 #PBS -m abe
 #PBS -N demultiplex_workflow
 #PBS -W umask=0022
@@ -83,121 +83,43 @@ echo "	There are ${n_sample_lane} lane/samples combinations (ignore if nextseq).
 
 #~ exit
 
-demux_flag=${PBS_O_WORKDIR}/bcl2fastq.done
-if [ ! -f ${demux_flag} ]; then
-	echo "Information:"
-	echo "	Demultiplexing with bcl2fastq..." 
-	/secondary/projects/genomicscore/tools/bcl2fastq/default/bin/bcl2fastq &> bcl2fastq.log # Launch bcl2fastq, needs to be made a module
-	# should write a check to qc if demultiplexing finished
-	touch ${demux_flag}
-else
-	echo "Information:"
-	echo "	I'm not demultiplexing with bcl2fastq (found ${demux_flag} indicating it has been done already)."
-fi
-#======================================================================= Mergelanes
-cd ${basecalls_dir} #Change into the BaseCalls directory
+# working directory assumed to be directory containing Data/ and demultiplex/ 
+cd ${PBS_O_WORKDIR}
 
-echo "Information:"
-echo "	Merging ${nlanes} lanes into L000 files"
-mergelanes_cmd="${mergenlanes_script} ${PBS_O_WORKDIR}/SampleSheet.csv ${read2_number_of_cycles} ${machine} ${PBS_O_WORKDIR}/"
-#~ echo $mergelanes_cmd
-#~ exit
-perl ${mergelanes_cmd}
+snakemake_module="bbc/snakemake/snakemake-5.28.0"
+module load $snakemake_module
 
-mergelanes_override=${PBS_O_WORKDIR}/mergelanes.override # if you still want to proceed (e.g. some samples not supposed to be in the samplesheet.csv)
-mergelanes_flag=${PBS_O_WORKDIR}/mergelanes.failed
-if [ -e ${mergelanes_flag} ]; then
-	if [ ! -e ${mergelanes_override} ]; then
-		echo "Information:"
-		echo "	Failing because the mergelanes failed"
-		echo "Information:"
-		echo "	To diagnose the error, run \"${mergelanes_cmd}\""
-		echo "	Once the error is fixed remove ${mergelanes_flag} and resubmit the demultiplexing job." 
-		exit
-	else
-		echo "Information:"
-		echo "	Mergelanes FAILED, but I received an override"
-	fi
-else
-	echo "Information:"
-	echo "	Mergelanes PASS! (did not find ${mergelanes_flag}"
-fi
+# make logs dir if it does not exist already. Without this, logs/ is automatically generate only after the first run of the pipeline
+logs_dir="snakemake_job_logs/snakemake_runs"
+[[ -d $logs_dir ]] || mkdir -p $logs_dir
 
+snakefile="demultiplex/bcl2fastq_snake/Snakefile"
 
-cd $PBS_O_WORKDIR
+snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${PBS_JOBID}.png
+snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${PBS_JOBID}.png
+snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${PBS_JOBID}.png
 
-echo "Information:"
-echo "	Demultiplexing and L000 file generation is now done!"
+echo "Start snakemake workflow. $(date)" >&1
+echo "Start snakemake workflow. $(date)" >&2
 
-#======================================================================= Fastqc / Multiqc
-##### FASTQC and FastQ screen on samples
-echo "Information:"
-echo "	FastQC and Fastq_screen..."
+snakemake \
+-p \
+--latency-wait 20 \
+--snakefile $snakefile \
+--use-envmodules \
+--jobs 100 \
+--cluster "ssh ${PBS_O_LOGNAME}@submit 'module load $snakemake_module; cd ${PBS_O_WORKDIR}; qsub \
+-q ${PBS_O_QUEUE} \
+-V \
+-l nodes=1:ppn={threads} \
+-l mem={resources.mem_gb}gb \
+-l walltime=100:00:00 \
+-W umask=0022 \
+-o {log.stdout} \
+-e {log.stderr}'"
 
-module load bbc/fastq_screen/fastq_screen-0.14.0
-
-for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
-	#Launch FastQC and fastq screen
-	number_of_L000_files=$(ls ${basecalls_dir}${p}|grep _L000_.*.fastq.gz|wc -l) # fastq files only
-	mkdir -p ${basecalls_dir}${p}/FastQC
-	if [ ${number_of_L000_files} -gt 0 ]; then
-		echo "		Launching FastQC and Fastq_screen on merged L000 files for project ${p}"
-		for s in `ls ${basecalls_dir}${p}/|grep _L000_.*.fastq.gz|grep -v Undetermined`; do 
-			f=$(sed -e 's/.fastq.gz/_fastqc.html/' <<< $s)
-			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
-				echo "			FastQC with sample file ${s} because ${f} not found"
-				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-				/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t ${PBS_NUM_PPN} ${basecalls_dir}${p}/${s}
-			else
-				echo "			FastQC with sample file ${s} exists (${f})"
-			fi
-			f=$(sed -e 's/.fastq.gz/_screen.html/' <<< $s)
-			if [ ! -f ${basecalls_dir}${p}/FastQC/${f} ]; then
-				echo "			Fastq_screen with sample file ${s} because ${f} not found"
-				#/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc --outdir ${basecalls_dir}${p}/FastQC -t 16 ${basecalls_dir}${p}/*_L000_*
-				fastq_screen --threads ${PBS_NUM_PPN} --outdir ${basecalls_dir}${p}/FastQC ${basecalls_dir}${p}/${s}
-			else
-				echo "			Fastq_screen with sample file ${s} exists (${f})"
-			fi
-		done
-	else
-		echo "	There are 0 L000 files to do FASTQC and Fastq_screen on ?!?!?!"
-	fi
-done
-##### FASTQC and Fastq_screen on Undetermined
-echo "Information:"
-if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_fastqc.html ]; then
-	cd ${basecalls_dir}
-	echo "	FastQC on the Undetermined."
-	/secondary/projects/genomicscore/tools/fastqc/FastQC/fastqc -t ${PBS_NUM_PPN} *_L000_*
-else
-	echo "	FastQC on the Undetermined exists!"
-fi
-
-if [ ! -f ${basecalls_dir}Undetermined_L000_R1_001_screen.html ]; then
-	cd ${basecalls_dir}
-	echo "	Fastq_screen on the Undetermined."
-	fastq_screen --threads ${PBS_NUM_PPN} *_L000_*fastq.gz
-else
-	echo "	Fastq_screen on the Undetermined exists!"
-fi
-##### MULTIQC
-echo "Information:"
-echo "	MultiQC..."
-cd ${basecalls_dir}
-for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
-	if [ ! -f ${basecalls_dir}${p}/multiqc_report.html ]; then
-		echo "		Doing MultiQC for project ${p}!"
-		cd ${p}/
-		ln -sf ${basecalls_dir}Undetermined* .
-		#export PATH=/secondary/projects/genomicscore/tools/miniconda2/bin:$PATH # not the best, needs to be a module
-        module load bbc/multiqc/multiqc-1.8
-		multiqc .
-		cd ..
-	else
-		echo "		Not doing multiqc for project ${p} because the report exists."
-	fi
-done
+echo "snakemake workflow done. $(date)" >&1
+echo "snakemake workflow done. $(date)" >&2
 
 cd $PBS_O_WORKDIR
 diagf=${PBS_O_WORKDIR}/diagnostic_files/
@@ -206,7 +128,8 @@ echo "
 Information:
 	Done with FastQC/MultiQC!
 	Generating diagnostic files in ${diagf}
-"
+" 
+
 #======================================================================= Generate diagnostic files
 #### Undetermined Index Quantification
 index_summary=${diagf}IndexSummary.txt
@@ -219,6 +142,7 @@ else
 fi
 
 undetermined=${basecalls_dir}Undetermined_L000_R1_001.fastq.gz # check for the L000 file, these need to be in the BaseCall dir
+
 
 echo "Information:"
 if [ ! -f $undetermined ]; then
@@ -252,6 +176,7 @@ else
 		fi
 	done
 fi
+
 
 ### PercentOccupiedByLane
 pof=${diagf}PercentOccupiedByLane.csv # percent occupied file
