@@ -287,7 +287,7 @@ rule fastq_screen:
         "bbc/fastq_screen/fastq_screen-0.14.0"
     threads: 4
     resources:
-        mem_gb = 96
+        mem_gb = 88
     shell:
         """
         fastq_screen --threads {threads} --outdir {params.outdir} {input}
@@ -313,7 +313,7 @@ rule fastq_screen_undetermined:
         "bbc/fastq_screen/fastq_screen-0.14.0"
     threads: 4
     resources:
-        mem_gb = 96
+        mem_gb = 88
     shell:
         """
         fastq_screen --threads {threads} --outdir {params.outdir} {input}
