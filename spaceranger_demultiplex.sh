@@ -56,15 +56,20 @@ fi
 
 cd ${flowcell} 
 
-for sample_dir in `ls`; do
-	# do fastqc
-	echo "FastQC on ${sample_dir}"
-	fastqc -t ${PBS_NUM_PPN} ${sample_dir}/*.fastq.gz
+fastqc -t ${PBS_NUM_PPN} *.fastq.gz
 
-	mv ${sample_dir}/*.zip ../FastQC/
-	mv ${sample_dir}/*.html ../FastQC/
-	
-done
+mv *.zip ../FastQC/
+mv *.html ../FastQC/
+
+#for sample_dir in `ls`; do
+#	# do fastqc
+#	echo "FastQC on ${sample_dir}"
+#	fastqc -t ${PBS_NUM_PPN} ${sample_dir}/*.fastq.gz
+#
+#	mv ${sample_dir}/*.zip ../FastQC/
+#	mv ${sample_dir}/*.html ../FastQC/
+#	
+#done
 
 cd ${demux_dir}${flowcell}/outs/fastq_path/
 
