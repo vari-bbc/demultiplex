@@ -7,6 +7,7 @@ Table of Contents
       * [New workflow](#new-workflow)
       * [Legacy workflow (non-parallelized fastqc and fastq_screen)](#legacy-workflow-non-parallelized-fastqc-and-fastq_screen)
       * [Miscellaneous](#miscellaneous)
+         * [Kill all demultiplex jobs](#kill-all-demultiplex-jobs)
          * ['Reset' the run directory](#reset-the-run-directory)
          * [Calculate md5sums for all fastq files in the run directory](#calculate-md5sums-for-all-fastq-files-in-the-run-directory)
    * [demultiplex for sc-atac](#demultiplex-for-sc-atac)
@@ -44,6 +45,18 @@ If merging lanes failed (e.g. some samples did not get demultiplexed properly), 
 
 
 ### Miscellaneous
+
+#### Kill all demultiplex jobs
+
+If you want to stop the demultiplexing pipeline, you need to kill all the running jobs.
+
+First, run the following to check that only demultiplexing jobs are matched.
+
+```qstat -u user.name | grep -P '\ssnakejob\.|demultiplex'```
+
+Then, run the following to kill those jobs.
+
+```qstat -u user.name | grep -P '\ssnakejob\.|demultiplex' | grep -Po '^\d+' | xargs qdel```
 
 #### 'Reset' the run directory
 
