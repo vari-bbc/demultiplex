@@ -107,7 +107,7 @@ snakemake \
 --latency-wait 20 \
 --snakefile $snakefile \
 --use-envmodules \
---jobs 100 \
+--jobs 20 \
 --cluster "ssh ${PBS_O_LOGNAME}@submit 'module load $snakemake_module; cd ${PBS_O_WORKDIR}; qsub \
 -q ${PBS_O_QUEUE} \
 -V \
