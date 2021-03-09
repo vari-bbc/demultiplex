@@ -49,7 +49,7 @@ If merging lanes failed (e.g. some samples did not get demultiplexed properly), 
 
 #### Dealing with samples with no reads
 
-Empty placeholder fastq files and output files from other QC tools will be created for samples with no reads. Fastq files that end up with 0 reads will be listed in a file named 'missing_fastqs.log' and will also be listed in the multiQC reports. 
+Empty placeholder fastq files and output files from other QC tools will be created for samples with no reads. Fastq files that end up with 0 reads will be listed in a file named 'missing_fastqs.log' immediately after `bcl2fastq` is run and will also be listed in the multiQC reports. If a samplesheet error is noticed after examining 'missing_fastqs.log', you may want to kill all the demultiplex PBS jobs immediately instead of waiting for the jobs to finish. See section below on killing PBS jobs. After that, you can 'reset' the demultiplexing directory, as described below, and restart the pipeline.
 
 #### Kill all demultiplex jobs
 
@@ -70,6 +70,8 @@ In case you need to rerun a pipeline, you may want to get rid of files created b
 ```./demultiplex/reset_dmux.sh```
 
 #### Calculate md5sums for all fastq files in the run directory
+
+This can take some time to run and uses up to 8 cores, so you should run this as an interactive PBS job, requesting 8 cores.
 
 ```./demultiplex/fastq_md5sums.sh```
 
