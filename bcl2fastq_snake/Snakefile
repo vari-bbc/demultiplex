@@ -82,7 +82,7 @@ rule bcl2fastq:
         sample_fqs=sample_fqs,
         undetermined_fqs=undetermined_fqs,
         missing_fastqs_yaml=missing_fq_yamls,
-        missing_fastqs_log="missing_fastqs_mqc.log",
+        missing_fastqs_log="missing_fastqs.log",
         #sample_fqs=expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),
         #undetermined_fqs=expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=pd.unique(samples['Lane']))
     params:
@@ -99,7 +99,9 @@ rule bcl2fastq:
     shell:
         """
         bcl2fastq &> {output.log}
-        
+       
+        touch {output.missing_fastqs_log}
+
         # Add header lines for the missing fastqs yaml
         for yaml_file in {output.missing_fastqs_yaml}
         do
