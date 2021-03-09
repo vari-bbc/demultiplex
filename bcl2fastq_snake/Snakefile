@@ -57,6 +57,8 @@ else:
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),
     undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes)
 
+
+missing_fq_yamls = expand("Data/Intensities/BaseCalls/{project}/missing_fastqs_mqc.yaml", project=np.unique(samples['Sample_Project']))
 #fastqc_and_screen_out = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']) + expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen'])
 
 rule all:
@@ -79,7 +81,7 @@ rule bcl2fastq:
         done="bcl2fastq.done",
         sample_fqs=sample_fqs,
         undetermined_fqs=undetermined_fqs,
-        missing_fastqs_yaml="snakemake_job_logs/missing_fastqs_mqc.yaml",
+        missing_fastqs_yaml=missing_fq_yamls,
         missing_fastqs_log="missing_fastqs_mqc.log",
         #sample_fqs=expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),
         #undetermined_fqs=expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=pd.unique(samples['Lane']))
@@ -97,20 +99,30 @@ rule bcl2fastq:
     shell:
         """
         bcl2fastq &> {output.log}
-
-        echo "id: 'missing-fqs'\nsection_name: 'Empty Fastq files after dmux'\ndescription: 'This section lists all the fastq files that ended up having 0 reads after bcl2fastq.'\nplot_type: 'html'\ndata: |\n    <ul>" > {output.missing_fastqs_yaml}
         
+        # Add header lines for the missing fastqs yaml
+        for yaml_file in {output.missing_fastqs_yaml}
+        do
+        echo "id: 'missing-fqs'\nsection_name: 'Empty Fastq files after dmux'\ndescription: 'This section lists all the fastq files that ended up having 0 reads after bcl2fastq.'\nplot_type: 'html'\ndata: |\n    <ul>" > $yaml_file
+        done
+
+        # Add missing files to the missing fastqs yaml files
         for fastq in {output.sample_fqs}
         do
             if [[ ! -f $fastq ]]
             then
-            echo "      <li>`basename $fastq`</li>" >> {output.missing_fastqs_yaml}
+            echo "      <li>`basename $fastq`</li>" >> `dirname $fastq`'/missing_fastqs_mqc.yaml'
             echo $fastq >> {output.missing_fastqs_log}
             touch $fastq
 
             fi
         done
-        echo "    </ul>" >> {output.missing_fastqs_yaml}
+        
+        # Add footer line for the missing fastqs yaml
+        for yaml_file in {output.missing_fastqs_yaml}
+        do
+        echo "    </ul>" >> $yaml_file
+        done
 
         touch {output.done}
         """
@@ -217,7 +229,6 @@ rule multiqc:
         "snakemake_job_logs/benchmarks/multiqc/{project}.txt"
     params:
         project_dir="Data/Intensities/BaseCalls/{project}/",
-        missing_fqs_log="snakemake_job_logs/"
     threads: 1
     resources:
         mem_gb=32
@@ -226,7 +237,7 @@ rule multiqc:
     shell:
         """
         multiqc -f \
-        -o {params.project_dir} {params.project_dir} {params.missing_fqs_log}
+        -o {params.project_dir} {params.project_dir}
 
         """
 
