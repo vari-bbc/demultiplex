@@ -9,7 +9,7 @@ export basecalls_dir
 
 projects=$(perl -F/,/ -lane 'print qq/$ENV{'basecalls_dir'}$F[9]/ if ($F[9] =~ /^\S/ && $F[9] ne q/Sample_Project/)' SampleSheet.csv  | sort | uniq)
 
-target_files="$projects bcl2fastq.done bcl2fastq.log diagnostic_files ${basecalls_dir}Undetermined* ${basecalls_dir}Stats* ${basecalls_dir}Reports* snakemake_job_logs .snakemake missing_fastqs_mqc.log"
+target_files="$projects bcl2fastq.done bcl2fastq.log diagnostic_files ${basecalls_dir}Undetermined* ${basecalls_dir}Stats* ${basecalls_dir}Reports* snakemake_job_logs .snakemake missing_fastqs.log"
 
 if ls $target_files >/dev/null 2>&1; then
   echo "Target files found."
