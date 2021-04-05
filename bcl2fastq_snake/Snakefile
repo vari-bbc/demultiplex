@@ -77,7 +77,6 @@ rule bcl2fastq:
     """
     input:
     output:
-        log="bcl2fastq.log",
         done="bcl2fastq.done",
         sample_fqs=sample_fqs,
         undetermined_fqs=undetermined_fqs,
@@ -87,6 +86,7 @@ rule bcl2fastq:
         #undetermined_fqs=expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=pd.unique(samples['Lane']))
     params:
     log:
+        log="bcl2fastq.log",
         stdout="snakemake_job_logs/bcl2fastq/out.o",
         stderr="snakemake_job_logs/bcl2fastq/out.e"
     benchmark:
@@ -98,7 +98,7 @@ rule bcl2fastq:
         mem_gb = 180
     shell:
         """
-        bcl2fastq &> {output.log}
+        bcl2fastq &> {log.log}
        
         touch {output.missing_fastqs_log}
 
