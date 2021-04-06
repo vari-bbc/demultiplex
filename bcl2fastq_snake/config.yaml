@@ -9,8 +9,16 @@ complexity:
     # Indicate if DNA-based sequencing or RNA-seq
     DNA_or_RNA: "RNA"
 
-    # Indicate the reference to align to.
-    ref_name: "foobar"
+    # Indicate the reference to align to. For example, 'human' or 'mouse'. See below for options.
+    ref_name: "mouse"
 
-    # Index location
-    index_dir: "foodir"
+    # References (No need to change anything here if your desired reference is already filled.
+    refs:
+        mouse:
+            star: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/indexes/star'
+            bwa: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/indexes/bwa/mm10_gencode_plus_lambda'
+
+        human:
+            star: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/star'
+            bwa: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/bwa/hg38_gencode'
+
