@@ -271,6 +271,7 @@ rule fastqc:
     envmodules:
         "bbc/fastqc/fastqc-0.11.9"
     threads: 1
+    priority: 50
     resources:
         mem_gb = 22
     shell:
@@ -302,6 +303,7 @@ rule find_low_count_fqs:
         "snakemake_job_logs/benchmarks/find_low_count_fqs/bench.txt"
     envmodules:
     threads: 1
+    priority: 50
     resources:
         mem_gb = 22
     shell:
