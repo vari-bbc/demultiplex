@@ -224,15 +224,29 @@ rule symlink_undet_to_each_proj:
         """
 
 
+#def get_post_alignment_metrics(wildcards):
+#    input_files = []
+#    if config['complexity']['run']:
+#
+#        align_dir = "Data/Intensities/BaseCalls/{project}/Align/{aligner}".format(project=wildcards.project, aligner = 'star' if config['complexity']['DNA_or_RNA']=='RNA' else 'bwa')
+#        sample_names = samples[samples['Sample_Project'] == wildcards.project]['Sample_Name']
+#        aligner_suff = '' if config['complexity']['DNA_or_RNA']=="DNA" else '.Aligned.sortedByCoord.out'
+#        input_files = expand(align_dir + "/flagstat/{sample}{aligner_suff}.flagstat", sample=sample_names, aligner_suff=aligner_suff)
+#        input_files = input_files + expand(align_dir + "/CollectInsertSizeMetrics/{sample}{aligner_suff}.insert_size_metrics.txt", sample=sample_names, aligner_suff=aligner_suff)
+#
+#    return input_files
+
+
 rule multiqc:
     """
     Make multiQC report.
     """
     input:
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
-        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()),
         expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
-        low_counts_fq_yamls
+        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
+        low_counts_fq_yamls,
+        #get_post_alignment_metrics,
     output:
         "Data/Intensities/BaseCalls/{project}/multiqc_report.html",
         directory("Data/Intensities/BaseCalls/{project}/multiqc_data")
@@ -439,7 +453,8 @@ rule bwamem:
     output:
         outbam="Data/Intensities/BaseCalls/{project}/Align/bwamem/{sample}.bam",
         outbai="Data/Intensities/BaseCalls/{project}/Align/bwamem/{sample}.bam.bai",
-        idxstat="Data/Intensities/BaseCalls/{project}/Align/bwamem/{sample}.bam.idxstat"
+        idxstat="Data/Intensities/BaseCalls/{project}/Align/bwamem/{sample}.bam.idxstat",
+        flagstat="Data/Intensities/BaseCalls/{project}/Align/bwamem/{sample}.bam.flagstat"
     log:
         stdout="snakemake_job_logs/bwamem/{project}/{sample}.o",
         stderr="snakemake_job_logs/bwamem/{project}/{sample}.e",
@@ -474,9 +489,13 @@ rule bwamem:
         echo "END indexing" >> {log.stdout}
         echo "END indexing" >> {log.stderr}
         
-        samtools idxstats {output.outbam} > {output.idxstat}
+        samtools idxstats -@ {threads} {output.outbam} > {output.idxstat}
         echo "END idxstats" >> {log.stdout}
         echo "END idxstats" >> {log.stderr}
+        
+        samtools flagstat -@ {threads} {output.outbam} > {output.flagstat}
+        echo "END flagstat" >> {log.stdout}
+        echo "END flagstat" >> {log.stderr}
  
         """
 
