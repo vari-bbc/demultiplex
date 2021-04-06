@@ -7,6 +7,7 @@ Table of Contents
       * [New workflow](#new-workflow)
       * [Legacy workflow (non-parallelized fastqc and fastq_screen)](#legacy-workflow-non-parallelized-fastqc-and-fastq_screen)
       * [Miscellaneous](#miscellaneous)
+         * [Running preseq](#running-preseq)
          * [Dealing with samples with no/few reads](#dealing-with-samples-with-nofew-reads)
          * [Kill all demultiplex jobs](#kill-all-demultiplex-jobs)
          * ['Reset' the run directory](#reset-the-run-directory)
@@ -46,6 +47,10 @@ If merging lanes failed (e.g. some samples did not get demultiplexed properly), 
 
 
 ## Miscellaneous
+
+### Running preseq
+
+Enable or disable running Preseq, by changing 'run' to True or False in `bcl2fastq_snake/config.yaml`. You must also indicate whether the data is 'DNA' or 'RNA' sequencing and which reference to align to. Look inside `bcl2fastq_snake/config.yaml` for more details.
 
 ### Dealing with samples with no/few reads
 

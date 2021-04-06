@@ -21,12 +21,18 @@ complexity:
     # References (No need to change anything here if your desired reference is already filled.
     refs:
         mouse:
-            star: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/indexes/star'
-            bwa: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/indexes/bwa/mm10_gencode_plus_lambda'
-            fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/sequence/mm10_gencode_plus_lambda.fa'
+            star: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/indexes/star'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/sequence/mm10_gencode_plus_ERCC92.fa'
+            bwa: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/indexes/bwa/mm10_gencode_plus_lambda'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/sequence/mm10_gencode_plus_lambda.fa'
 
         human:
-            star: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/star'
-            bwa: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/bwa/hg38_gencode'
-            fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/sequence/hg38_gencode.fa'
+            star: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/star'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/sequence/hg38_gencode.fa'
+            bwa: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/bwa/hg38_gencode'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/sequence/hg38_gencode.fa'
 
