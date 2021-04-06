@@ -14,8 +14,7 @@ configfile: "demultiplex/bcl2fastq_snake/config.yaml"
 min_reads = config['min_reads'] #100
 
 # Reference name for complexity
-if config['complexity']['run']:
-    complexity_ref_name = config['complexity']['ref_name']
+complexity_ref_name = config['complexity']['ref_name']
 
 # https://stackoverflow.com/questions/10717504/is-it-possible-to-use-read-csv-to-read-only-specific-lines
 s = io.StringIO()
