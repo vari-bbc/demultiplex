@@ -7,7 +7,7 @@ Table of Contents
       * [New workflow](#new-workflow)
       * [Legacy workflow (non-parallelized fastqc and fastq_screen)](#legacy-workflow-non-parallelized-fastqc-and-fastq_screen)
       * [Miscellaneous](#miscellaneous)
-         * [Dealing with samples with no/few reads](#dealing-with-samples-with-no/few-reads)
+         * [Dealing with samples with no/few reads](#dealing-with-samples-with-nofew-reads)
          * [Kill all demultiplex jobs](#kill-all-demultiplex-jobs)
          * ['Reset' the run directory](#reset-the-run-directory)
          * [Calculate md5sums for all fastq files in the run directory](#calculate-md5sums-for-all-fastq-files-in-the-run-directory)
