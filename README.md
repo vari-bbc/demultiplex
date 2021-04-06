@@ -7,7 +7,7 @@ Table of Contents
       * [New workflow](#new-workflow)
       * [Legacy workflow (non-parallelized fastqc and fastq_screen)](#legacy-workflow-non-parallelized-fastqc-and-fastq_screen)
       * [Miscellaneous](#miscellaneous)
-         * [Dealing with samples with no reads](#dealing-with-samples-with-no-reads)
+         * [Dealing with samples with no/few reads](#dealing-with-samples-with-no/few-reads)
          * [Kill all demultiplex jobs](#kill-all-demultiplex-jobs)
          * ['Reset' the run directory](#reset-the-run-directory)
          * [Calculate md5sums for all fastq files in the run directory](#calculate-md5sums-for-all-fastq-files-in-the-run-directory)
@@ -47,11 +47,13 @@ If merging lanes failed (e.g. some samples did not get demultiplexed properly), 
 
 ## Miscellaneous
 
-### Dealing with samples with no reads
+### Dealing with samples with no/few reads
 
-Empty placeholder fastq files and output files from other QC tools will be created for samples with no reads. Fastq files that end up with 0 reads will be listed in a file named 'missing_fastqs.log' immediately after `bcl2fastq` is run and will also be listed in the multiQC reports.
+Empty placeholder fastq files and output files from other QC tools will be created for samples with no reads. Fastq files that end up with 0 reads will be listed in a file named `missing_fastqs.log` immediately after `bcl2fastq` is run and will also be listed in the multiQC reports.
 
-If a samplesheet error is noticed after examining 'missing_fastqs.log', you may want to kill all the demultiplex PBS jobs immediately instead of waiting for the jobs to finish. After that, you can 'reset' the demultiplexing directory and restart the pipeline by running `qsub -q genomics demultiplex/bcl2fastq_snake.sh` (if using the Snakemake pipeline) again. See sections below on [killing PBS jobs](#kill-all-demultiplex-jobs) and how to ['reset' the directory](#reset-the-run-directory).
+Low count files, which are fastq files with read count less than the minimum value set in `demultiplex/bcl2fastq_snake/config.yaml`, are listed in `low_count_fastqs.log` only after all FastQC jobs are finished because it uses the FastQC output to determine the counts. These low count files are also listed in the multiQC reports.
+
+If a samplesheet error is noticed after examining `missing_fastqs.log` or `low_count_fastqs.log`, you may want to kill all the demultiplex PBS jobs immediately instead of waiting for the jobs to finish. After that, you can 'reset' the demultiplexing directory and restart the pipeline by running `qsub -q genomics demultiplex/bcl2fastq_snake.sh` (if using the Snakemake pipeline) again. See sections below on [killing PBS jobs](#kill-all-demultiplex-jobs) and how to ['reset' the directory](#reset-the-run-directory).
 
 ### Kill all demultiplex jobs
 

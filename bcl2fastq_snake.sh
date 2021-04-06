@@ -90,14 +90,14 @@ snakemake_module="bbc/snakemake/snakemake-5.28.0"
 module load $snakemake_module
 
 # make logs dir if it does not exist already. Without this, logs/ is automatically generate only after the first run of the pipeline
-logs_dir="snakemake_job_logs/snakemake_runs"
+logs_dir="snakemake_job_logs/" # snakemake_runs
 [[ -d $logs_dir ]] || mkdir -p $logs_dir
 
 snakefile="demultiplex/bcl2fastq_snake/Snakefile"
 
-snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${PBS_JOBID}.png
-snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${PBS_JOBID}.png
-snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${PBS_JOBID}.png
+#snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${PBS_JOBID}.png
+#snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${PBS_JOBID}.png
+#snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${PBS_JOBID}.png
 
 echo "Start snakemake workflow. $(date)" >&1
 echo "Start snakemake workflow. $(date)" >&2
@@ -107,7 +107,7 @@ snakemake \
 --latency-wait 20 \
 --snakefile $snakefile \
 --use-envmodules \
---jobs 20 \
+--jobs 40 \
 --cluster "ssh ${PBS_O_LOGNAME}@submit 'module load $snakemake_module; cd ${PBS_O_WORKDIR}; qsub \
 -q ${PBS_O_QUEUE} \
 -V \

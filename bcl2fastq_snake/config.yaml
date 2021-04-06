@@ -1,0 +1,16 @@
+# Fastq files with less than this number of reads will be flagged in the low counts log file and in the multiqc report
+min_reads: 100
+
+# Complexity
+complexity:
+    # Run preseq
+    run: True
+    
+    # Indicate if DNA-based sequencing or RNA-seq
+    DNA_or_RNA: "RNA"
+
+    # Indicate the reference to align to.
+    ref_name: "foobar"
+
+    # Index location
+    index_dir: "foodir"

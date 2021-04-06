@@ -8,6 +8,11 @@ from snakemake.utils import validate, min_version
 ##### set minimum snakemake version #####
 min_version("5.28.0")
 
+configfile: "demultiplex/bcl2fastq_snake/config.yaml"
+
+# minimum reads to be considered a low read fastq
+min_reads = config['min_reads'] #100
+
 # https://stackoverflow.com/questions/10717504/is-it-possible-to-use-read-csv-to-read-only-specific-lines
 s = io.StringIO()
 read_lens = []
@@ -59,6 +64,7 @@ else:
 
 
 missing_fq_yamls = expand("Data/Intensities/BaseCalls/{project}/missing_fastqs_mqc.yaml", project=np.unique(samples['Sample_Project']))
+low_counts_fq_yamls = expand("Data/Intensities/BaseCalls/{project}/low_counts_fastqs_mqc.yaml", project=np.unique(samples['Sample_Project']))
 #fastqc_and_screen_out = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']) + expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen'])
 
 rule all:
@@ -105,7 +111,7 @@ rule bcl2fastq:
         # Add header lines for the missing fastqs yaml
         for yaml_file in {output.missing_fastqs_yaml}
         do
-        echo "id: 'missing-fqs'\nsection_name: 'Empty Fastq files after dmux'\ndescription: 'This section lists all the fastq files that ended up having 0 reads after bcl2fastq.'\nplot_type: 'html'\ndata: |\n    <ul>" > $yaml_file
+            echo "id: 'missing-fqs'\nsection_name: 'Empty Fastq files after dmux'\ndescription: 'This section lists all the fastq files that ended up having 0 reads after bcl2fastq.'\nplot_type: 'html'\ndata: |\n    <ul>" > $yaml_file
         done
 
         # Add missing files to the missing fastqs yaml files
@@ -123,7 +129,7 @@ rule bcl2fastq:
         # Add footer line for the missing fastqs yaml
         for yaml_file in {output.missing_fastqs_yaml}
         do
-        echo "    </ul>" >> $yaml_file
+            echo "    </ul>" >> $yaml_file
         done
 
         touch {output.done}
@@ -221,6 +227,7 @@ rule multiqc:
     input:
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+        low_counts_fq_yamls
     output:
         "Data/Intensities/BaseCalls/{project}/multiqc_report.html",
         directory("Data/Intensities/BaseCalls/{project}/multiqc_data")
@@ -252,7 +259,8 @@ rule fastqc:
         "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz"
     output:
         html="Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_fastqc.html",
-        zip="Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_fastqc.zip"
+        files=directory("Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_fastqc"),
+        done=touch("Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_fastqc/done")
     params:
         outdir="Data/Intensities/BaseCalls/{project}/FastQC/"
     log:
@@ -269,11 +277,71 @@ rule fastqc:
         """
         if [ -s {input} ]
         then
-            fastqc --outdir {params.outdir} {input}
+            fastqc --extract --outdir {params.outdir} {input}
         else
-            touch {output.html} {output.zip}
+            touch {output.html}
         fi
+
         """
+
+rule find_low_count_fqs:
+    """
+    Check fastq files to find those with low read counts.
+    """
+    input:
+        expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_fastqc/done", sample=samples.itertuples(), read=['1','2'])
+    output:
+        low_counts_yaml=low_counts_fq_yamls,
+        low_counts_log="low_count_fastqs.log"
+    params:
+        min_reads=min_reads
+    log:
+        stdout="snakemake_job_logs/find_low_count_fqs/out.o",
+        stderr="snakemake_job_logs/find_low_count_fqs/err.e"
+    benchmark:
+        "snakemake_job_logs/benchmarks/find_low_count_fqs/bench.txt"
+    envmodules:
+    threads: 1
+    resources:
+        mem_gb = 22
+    shell:
+        """
+        # Add header lines for the low_counts fastqs yaml
+        for yaml_file in {output.low_counts_yaml}
+        do
+            echo "id: 'low-counts-fqs'\nsection_name: 'Low count fastq files after dmux'\ndescription: 'This section lists all the fastq files with < {params.min_reads} reads after bcl2fastq and lane-merging.'\nplot_type: 'html'\ndata: |\n    <ul>" > $yaml_file
+        done
+
+        # Add low_counts files to the low_counts fastqs yaml files
+        for fastqc_done in {input}
+        do
+            fastqc_data_file=`dirname $fastqc_done`'/fastqc_data.txt'
+            fastq=$(basename $(dirname $fastqc_done) | perl -npe 's/_fastqc/.fastq.gz/')
+            proj_dir=$(dirname $(dirname $(dirname $fastqc_data_file)))
+
+            if [ -e $fastqc_data_file ]
+            then
+                num_reads=$(grep -P '^Total Sequences' $fastqc_data_file | grep -Po '\d+$')
+            else
+                num_reads=0
+            fi
+
+            # Check the number of reads
+            if [ $num_reads -lt {params.min_reads} ]
+            then
+                echo "$proj_dir/$fastq\t$num_reads" >> {output.low_counts_log}
+                echo "      <li>$fastq\t$num_reads</li>" >> "$proj_dir/low_counts_fastqs_mqc.yaml"
+            fi
+        done
+                
+        # Add footer line for the low_counts fastqs yaml
+        for yaml_file in {output.low_counts_yaml}
+        do
+            echo "    </ul>" >> $yaml_file
+        done
+
+        """
+
 
 rule fastqc_undetermined:
     """
