@@ -244,7 +244,7 @@ rule multiqc:
     input:
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
-        # below rule is not executed
+
         #lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
         low_counts_fq_yamls,
         # get_post_alignment_metrics,- not executed
