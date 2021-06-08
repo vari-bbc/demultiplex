@@ -244,6 +244,7 @@ rule multiqc:
     input:
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
         low_counts_fq_yamls,
         get_post_alignment_metrics,
@@ -359,11 +360,10 @@ rule find_low_count_fqs:
         for yaml_file in {output.low_counts_yaml}
         do
             echo "    </ul>" >> $yaml_file
-        done
-        
+        done     
         # if all of the fastq files have more than 100 reads, then the snakemake pipeline is not able to generate the low_count_fastqs.log file.
         # So the below command is added.
-        echo "done" >> low_count_fastqs.log 
+        echo "done" >> {output.low_counts_log}
         """
 
 
