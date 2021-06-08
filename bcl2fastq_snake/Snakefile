@@ -135,7 +135,6 @@ rule bcl2fastq:
             echo "    </ul>" >> $yaml_file
         done
 
-        touch {output.done}
         """
 
 def get_all_lanes_fqs(wildcards):
