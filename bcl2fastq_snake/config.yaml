@@ -1,0 +1,38 @@
+# Fastq files with less than this number of reads will be flagged in the low counts log file and in the multiqc report
+min_reads: 100
+
+# Complexity
+complexity:
+    # Run preseq. Either True or False. Don't quote.
+    run: False
+   
+    # Preseq errors out if there are too few reads. Not sure what the actual cutoff is
+    preseq_min_reads: 10000
+
+        # Preseq errors out if fragment size of a read is greater than this value. RNA-seq often has issues here due to splicing. I am not sure how setting this to an extremely high value affects the calculations.
+    preseq_seq_len_max: 1000000000
+
+    # Indicate if DNA-based sequencing or RNA-seq
+    DNA_or_RNA: "DNA"
+
+    # Indicate the reference to align to. For example, 'human' or 'mouse'. See below for options.
+    ref_name: "mouse"
+
+    # References (No need to change anything here if your desired reference is already filled.
+    refs:
+        mouse:
+            star: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/indexes/star'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/sequence/mm10_gencode_plus_ERCC92.fa'
+            bwa: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/indexes/bwa/mm10_gencode_plus_lambda'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/sequence/mm10_gencode_plus_lambda.fa'
+
+        human:
+            star: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/star'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/sequence/hg38_gencode.fa'
+            bwa: 
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/indexes/bwa/hg38_gencode'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/hg38_gencode/sequence/hg38_gencode.fa'
+
