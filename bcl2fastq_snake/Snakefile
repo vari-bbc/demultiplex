@@ -359,8 +359,10 @@ rule find_low_count_fqs:
         for yaml_file in {output.low_counts_yaml}
         do
             echo "    </ul>" >> $yaml_file
-        done
-
+        done     
+        # if all of the fastq files have more than 100 reads, then the snakemake pipeline is not able to generate the low_count_fastqs.log file.
+        # So the below command is added.
+        echo "done" >> {output.low_counts_log}
         """
 
 
