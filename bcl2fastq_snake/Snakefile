@@ -195,32 +195,32 @@ rule cat_fqs_undetermined:
         else:
             shell("ln -sr {input} {output}")
 
-rule symlink_undet_to_each_proj:
-    """
-    Symlink Undetermined files to project directories.
-    """
-    input:
-        expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001{suffix}", read=[1,2] if paired_end else [1], suffix=['_fastqc.html','_screen.html','_fastqc.zip','_screen.txt','.fastq.gz']),
-        expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes),
-    output:
-        expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001{suffix}", read=[1,2] if paired_end else [1], suffix=['_fastqc.html','_screen.html','_fastqc.zip','_screen.txt','.fastq.gz']),
-        expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes),
-    log:
-        stdout="snakemake_job_logs/symlink_undet_to_each_proj/{project}.o",
-        stderr="snakemake_job_logs/symlink_undet_to_each_proj/{project}.e"
-    benchmark:
-        "snakemake_job_logs/benchmarks/symlink_undet_to_each_proj/{project}.txt"
-    params:
-        project = "{project}"
-    threads: 1
-    resources:
-        mem_gb=32
-    envmodules:
-    shell:
-        """
-        ln -sr Data/Intensities/BaseCalls/Undetermined* Data/Intensities/BaseCalls/{params.project}
-
-        """
+# rule symlink_undet_to_each_proj:
+#     """
+#     Symlink Undetermined files to project directories.
+#     """
+#     input:
+#         expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001{suffix}", read=[1,2] if paired_end else [1], suffix=['_fastqc.html','_screen.html','_fastqc.zip','_screen.txt','.fastq.gz']),
+#         expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes),
+#     output:
+#         expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001{suffix}", read=[1,2] if paired_end else [1], suffix=['_fastqc.html','_screen.html','_fastqc.zip','_screen.txt','.fastq.gz']),
+#         expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes),
+#     log:
+#         stdout="snakemake_job_logs/symlink_undet_to_each_proj/{project}.o",
+#         stderr="snakemake_job_logs/symlink_undet_to_each_proj/{project}.e"
+#     benchmark:
+#         "snakemake_job_logs/benchmarks/symlink_undet_to_each_proj/{project}.txt"
+#     params:
+#         project = "{project}"
+#     threads: 1
+#     resources:
+#         mem_gb=32
+#     envmodules:
+#     shell:
+#         """
+#         ln -sr Data/Intensities/BaseCalls/Undetermined* Data/Intensities/BaseCalls/{params.project}
+#
+#         """
 
 
 def get_post_alignment_metrics(wildcards):
@@ -243,7 +243,7 @@ rule multiqc:
     """
     input:
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
-        expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+        #expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
         low_counts_fq_yamls,
         get_post_alignment_metrics,
@@ -366,31 +366,31 @@ rule find_low_count_fqs:
         """
 
 
-rule fastqc_undetermined:
-    """
-    Run fastqc for merged (across lanes) undetermined files.
-    """
-    input:
-        "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz"
-    output:
-        html="Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_fastqc.html",
-        zip="Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_fastqc.zip"
-    params:
-        outdir="Data/Intensities/BaseCalls/"
-    log:
-        stdout="snakemake_job_logs/fastqc/Undetermined_L000_R{read}.o",
-        stderr="snakemake_job_logs/fastqc/Undetermined_L000_R{read}.e"
-    benchmark:
-        "snakemake_job_logs/benchmarks/fastqc/Undetermined_L000_R{read}.txt"
-    envmodules:
-        "bbc/fastqc/fastqc-0.11.9"
-    threads: 1
-    resources:
-        mem_gb = 22
-    shell:
-        """
-        fastqc --outdir {params.outdir} {input}
-        """
+# rule fastqc_undetermined:
+#     """
+#     Run fastqc for merged (across lanes) undetermined files.
+#     """
+#     input:
+#         "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz"
+#     output:
+#         html="Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_fastqc.html",
+#         zip="Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_fastqc.zip"
+#     params:
+#         outdir="Data/Intensities/BaseCalls/"
+#     log:
+#         stdout="snakemake_job_logs/fastqc/Undetermined_L000_R{read}.o",
+#         stderr="snakemake_job_logs/fastqc/Undetermined_L000_R{read}.e"
+#     benchmark:
+#         "snakemake_job_logs/benchmarks/fastqc/Undetermined_L000_R{read}.txt"
+#     envmodules:
+#         "bbc/fastqc/fastqc-0.11.9"
+#     threads: 1
+#     resources:
+#         mem_gb = 22
+#     shell:
+#         """
+#         fastqc --outdir {params.outdir} {input}
+#         """
 
 rule fastq_screen:
     """
@@ -423,31 +423,31 @@ rule fastq_screen:
         fi
         """
 
-rule fastq_screen_undetermined:
-    """
-    Run fastq_screen for merged (across lanes) sample files.
-    """
-    input:
-        "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz"
-    output:
-        html = "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_screen.html",
-        txt = "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_screen.txt",
-    params:
-        outdir = "Data/Intensities/BaseCalls/"
-    log:
-        stdout="snakemake_job_logs/fastq_screen/Undetermined_L000_R{read}.o",
-        stderr="snakemake_job_logs/fastq_screen/Undetermined_L000_R{read}.e"
-    benchmark:
-        "snakemake_job_logs/benchmarks/fastq_screen/Undetermined_L000_R{read}.txt"
-    envmodules:
-        "bbc/fastq_screen/fastq_screen-0.14.0"
-    threads: 4
-    resources:
-        mem_gb = 88
-    shell:
-        """
-        fastq_screen --threads {threads} --outdir {params.outdir} {input}
-        """
+# rule fastq_screen_undetermined:
+#     """
+#     Run fastq_screen for merged (across lanes) sample files.
+#     """
+#     input:
+#         "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz"
+#     output:
+#         html = "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_screen.html",
+#         txt = "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_screen.txt",
+#     params:
+#         outdir = "Data/Intensities/BaseCalls/"
+#     log:
+#         stdout="snakemake_job_logs/fastq_screen/Undetermined_L000_R{read}.o",
+#         stderr="snakemake_job_logs/fastq_screen/Undetermined_L000_R{read}.e"
+#     benchmark:
+#         "snakemake_job_logs/benchmarks/fastq_screen/Undetermined_L000_R{read}.txt"
+#     envmodules:
+#         "bbc/fastq_screen/fastq_screen-0.14.0"
+#     threads: 4
+#     resources:
+#         mem_gb = 88
+#     shell:
+#         """
+#         fastq_screen --threads {threads} --outdir {params.outdir} {input}
+#         """
 
 rule bwa:
     input:
