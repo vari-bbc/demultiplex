@@ -74,7 +74,8 @@ rule all:
     input:
         sample_fqs,
         undetermined_fqs,
-        expand("Data/Intensities/BaseCalls/{project}/multiqc_report.html", project=pd.unique(samples['Sample_Project'])) #if "run_qc" in config else [],
+        expand("Data/Intensities/BaseCalls/{project}/multiqc_report.html", project=pd.unique(samples['Sample_Project'])), #if "run_qc" in config else [],
+        expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz", read=[1,2]),
         #fastqc_and_screen_out if "run_qc" in config else [],
         #expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         #expand("Data/Intensities/BaseCalls/Undetermined_S0_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
