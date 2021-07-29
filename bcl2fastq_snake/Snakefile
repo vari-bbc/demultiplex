@@ -40,7 +40,8 @@ with open('SampleSheet.csv') as f:
 s.seek(0) # "rewind" to the beginning of the StringIO object
 
 # read in the csv with the header lines removed
-samples = pd.read_csv(s)
+# Convert Sample_Id and Sample_Name from int to str
+samples = pd.read_csv(s, dtype={"Sample_ID" : str, "Sample_Name" : str })
 
 
 # Next we add a SampleNum column based on order of appearance in the Sample_Name column
