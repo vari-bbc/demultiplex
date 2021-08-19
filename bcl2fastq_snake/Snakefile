@@ -77,6 +77,7 @@ rule all:
         undetermined_fqs,
         expand("Data/Intensities/BaseCalls/{project}/multiqc_report.html", project=pd.unique(samples['Sample_Project'])), #if "run_qc" in config else [],
         expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz", read=[1,2]),
+        "md5sums.txt",
         #fastqc_and_screen_out if "run_qc" in config else [],
         #expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         #expand("Data/Intensities/BaseCalls/Undetermined_S0_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
@@ -636,4 +637,34 @@ rule preseq_complexity:
             echo "Finished lc_extrap." >&1
             echo "Finished lc_extrap." >&2
         fi
+        """
+
+rule md5sum:
+    input:
+        expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_L000_R{read}_001.fastq.gz",
+            sample=samples.itertuples(),
+            read=['1', '2'])
+
+    output:
+        "md5sums.txt",
+        # fqs = "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz"
+    log:
+        stdout="snakemake_job_logs/md5sum/md5sum.o",
+        stderr="snakemake_job_logs/md5sum/md5sum.e",
+    benchmark:
+        "snakemake_job_logs/md5sum/md5sum.txt",
+    envmodules:
+        "bbc/parallel/parallel-20191122",
+    resources:
+        mem_gb = 32
+    shell:
+        """
+        target_files=$(find Data/Intensities/BaseCalls/ -name '*fastq.gz' ! -name "Undetermined*.fastq.gz" | sort)
+        
+        if [ -z "$target_files" ]; then
+            echo "No fastq.gz files found."
+            exit 1
+        fi
+
+        parallel -k --will-cite -j 8 md5sum ::: $target_files > {output}
         """
