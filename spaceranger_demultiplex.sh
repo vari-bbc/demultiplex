@@ -22,7 +22,7 @@ module load bbc/fastqc/fastqc-0.11.8
 module load bbc/multiqc/multiqc-1.8
 
 #Load cellranger
-module load bbc/spaceranger/spaceranger-1.2.1
+module load bbc/spaceranger/spaceranger-1.3.0
 #module load bbc/cellranger/cellranger-3.1.0
 #module load bbc/cellranger/cellranger-4.0.0
 
@@ -31,13 +31,12 @@ flowcell=$(cat RunInfo.xml|grep '<Flowcell>'|sed -e 's/<Flowcell>//'|sed -e 's/<
 
 if [ ! -d $flowcell ]; then
 	# using a simple samplesheet creates an expanded samplesheet in something like <run directory>/<flowcell?/MAKE_FASTQS_CS/MAKE_FASTQS/PREPARE_SAMPLESHEET/fork0/chnk0-ue95dc1ca02/files/samplesheet.csv
-	
+
 	echo "Demultiplexing"
-		
+
     spaceranger mkfastq \
 	--run=${demux_dir} \
-	--csv=${demux_dir}SampleSheet.csv \
-	--qc
+	--csv=${demux_dir}SampleSheet.csv
 
 else
 	echo "Demultiplexing is done. If this is not the case, e.g. there was an error, then delete the ${flowcell} directory and resubmit the job."
@@ -54,7 +53,7 @@ if [ ! -f FastQC/Undetermined_S0_L001_I1_001_fastqc.zip ]; then
 fi
 
 
-cd ${flowcell} 
+cd ${flowcell}
 
 fastqc -t ${PBS_NUM_PPN} *.fastq.gz
 
@@ -68,7 +67,7 @@ mv *.html ../FastQC/
 #
 #	mv ${sample_dir}/*.zip ../FastQC/
 #	mv ${sample_dir}/*.html ../FastQC/
-#	
+#
 #done
 
 cd ${demux_dir}${flowcell}/outs/fastq_path/
