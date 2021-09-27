@@ -56,15 +56,16 @@ assert (0 < len(read_lens) < 3), "Number of read lengths parsed not 1 or 2. It w
 
 # whether data is PE (or SE)
 paired_end = True if len(read_lens) == 2 else False
+avail_read = ["1", "2"] if paired_end else ["1"]
 
 if 'Lane' in samples.columns:
     lanes = pd.unique(samples['Lane'])
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),
-    undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes)
+    undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
 else:
     lanes = [1,2,3,4] # if no Lane column in SampleSheet.csv, assume it is NextSeq and that each sample spread over 4 lanes.
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),
-    undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=lanes)
+    undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
 
 
 missing_fq_yamls = expand("Data/Intensities/BaseCalls/{project}/missing_fastqs_mqc.yaml", project=np.unique(samples['Sample_Project']))
@@ -76,7 +77,7 @@ rule all:
         sample_fqs,
         undetermined_fqs,
         expand("Data/Intensities/BaseCalls/{project}/multiqc_report.html", project=pd.unique(samples['Sample_Project'])), #if "run_qc" in config else [],
-        expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz", read=[1,2]),
+        expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz", read=avail_read),
         expand("Data/Intensities/BaseCalls/{project}/md5sums.txt", project=pd.unique(samples['Sample_Project']))
         #fastqc_and_screen_out if "run_qc" in config else [],
         #expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
@@ -245,7 +246,7 @@ rule multiqc:
     Make multiQC report.
     """
     input:
-        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=avail_read, prog=['fastqc','screen']),
         #expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
         low_counts_fq_yamls,
@@ -312,7 +313,7 @@ rule find_low_count_fqs:
     Check fastq files to find those with low read counts.
     """
     input:
-        expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_fastqc/done", sample=samples.itertuples(), read=['1','2'])
+        expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_fastqc/done", sample=samples.itertuples(), read=avail_read)
     output:
         low_counts_yaml=low_counts_fq_yamls,
         low_counts_log="low_count_fastqs.log"
@@ -454,7 +455,7 @@ rule fastq_screen:
 
 rule bwa:
     input:
-        expand("Data/Intensities/BaseCalls/{{project}}/{{sample}}_L000_R{read}_001.fastq.gz", read=["1","2"])
+        expand("Data/Intensities/BaseCalls/{{project}}/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
     output:
         outbam=temp("Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam"),
         outbai="Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam.bai",
@@ -502,7 +503,7 @@ rule bwa:
 
 rule star:
     input:
-        expand("Data/Intensities/BaseCalls/{{project}}/{{sample}}_L000_R{read}_001.fastq.gz", read=["1","2"])
+        expand("Data/Intensities/BaseCalls/{{project}}/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
     output:
         outbam =              temp("Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Aligned.sortedByCoord.out.bam"),
         bai =                 "Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Aligned.sortedByCoord.out.bam.bai",
@@ -643,7 +644,7 @@ rule md5sum:
     input:
         lambda wildcards: expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_L000_R{read}_001.fastq.gz",
             sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(),
-            read=['1', '2'])
+            read=avail_read)
         # "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz",
     output:
         "Data/Intensities/BaseCalls/{project}/md5sums.txt",
