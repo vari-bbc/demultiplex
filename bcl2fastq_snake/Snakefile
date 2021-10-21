@@ -106,7 +106,7 @@ rule bcl2fastq:
         "snakemake_job_logs/benchmarks/bcl2fastq/benchmark.txt"
     envmodules:
         "bbc/bcl2fastq2/bcl2fastq2-2.20.0"
-    threads: 8
+    threads: 24
     resources:
         mem_gb = 180
     shell:
@@ -657,10 +657,11 @@ rule md5sum:
     params:
         project_dir="Data/Intensities/BaseCalls/{project}/",
         md5sum_file = 'md5sums.txt'
+    threads: 2
     # envmodules:
     #     "bbc/parallel/parallel-20191122",
     resources:
-        mem_gb = 32
+        mem_gb = 4
     shell:
         """
         cd {params.project_dir}
