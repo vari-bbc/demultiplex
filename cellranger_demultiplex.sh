@@ -13,7 +13,9 @@ echo "\\\\ Single-cell 10x demultiplexing ////"
 echo "Run directory: $demux_dir"
 
 #Export bcl2fastq
-export PATH=$PATH:/secondary/projects/genomicscore/tools/bcl2fastq/default/bin # bcl2fastq was also too difficult to install as a module
+#export PATH=$PATH:/secondary/projects/genomicscore/tools/bcl2fastq/default/bin # bcl2fastq was also too difficult to install as a module
+#Load a newer version of bcl2fastq
+module load bbc/bcl2fastq2/bcl2fastq2-2.20.0
 
 #Load fastqc module
 module load bbc/fastqc/fastqc-0.11.8
