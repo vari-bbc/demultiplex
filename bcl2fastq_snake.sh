@@ -86,7 +86,7 @@ echo "	There are ${n_sample_lane} lane/samples combinations (ignore if nextseq).
 # working directory assumed to be directory containing Data/ and demultiplex/ 
 cd ${PBS_O_WORKDIR}
 
-snakemake_module="bbc/snakemake/snakemake-5.28.0"
+snakemake_module="bbc/snakemake/snakemake-6.15.0" 
 module load $snakemake_module
 
 # make logs dir if it does not exist already. Without this, logs/ is automatically generate only after the first run of the pipeline
