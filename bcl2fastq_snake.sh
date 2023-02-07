@@ -32,7 +32,7 @@ Information:
 "
 #~ exit
 #======================================================================= # Set some parameters based on the machine
-if [ ${machine} == 'FS10000742' ]; then # ISEQ -f12
+if [ ${machine} == 'FS10002737' ]; then # ISEQ -f12
 	echo "This is an ISEQ run."
 	project_code_field=10 # 12 for iseq
 	read2_number_of_cycles=$(cat RunParameters.xml|grep '<ReadType>'|sed -e 's/<ReadType>//'|sed -e 's/<\/ReadType>//'|sed -e 's/ //g') 

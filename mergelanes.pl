@@ -38,7 +38,7 @@ while(<$in>){
 		if($machine eq 'A00426'){ # Novaseq
 			#~ print "NOVASEQ...\n";
 			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
-		}elsif($machine eq 'FS10000742'){ # iSeq
+		}elsif($machine eq 'FS10002737'){ # iSeq
 			#~ print "ISEQ...\n";
 			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
 		}elsif($machine eq 'NS500653'){ # NextSeq
