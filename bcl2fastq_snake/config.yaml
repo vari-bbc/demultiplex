@@ -4,7 +4,7 @@ min_reads: 100
 # Complexity
 complexity:
     # Run preseq. Either True or False. Don't quote.
-    run: False
+    run: True
    
     # Preseq errors out if there are too few reads. Not sure what the actual cutoff is
     preseq_min_reads: 10000
@@ -22,11 +22,11 @@ complexity:
     refs:
         mouse:
             star: 
-                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/indexes/star'
-                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_ERCC92/sequence/mm10_gencode_plus_ERCC92.fa'
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_current/data/mm10_gencode_plus_ERCC92/indexes/star'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_current/data/mm10_gencode_plus_ERCC92/sequence/mm10_gencode_plus_ERCC92.fa'
             bwa: 
-                index: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/indexes/bwa/mm10_gencode_plus_lambda'
-                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_timestamped/20210329-21.08.12/data/mm10_gencode_plus_lambda/sequence/mm10_gencode_plus_lambda.fa'
+                index: '/secondary/projects/bbc/research/prep_bbc_shared_current/data/mm10_gencode_plus_ERCC92/indexes/bwa/mm10_gencode_plus_ERCC92'
+                fasta: '/secondary/projects/bbc/research/prep_bbc_shared_current/data/mm10_gencode_plus_ERCC92/sequence/mm10_gencode_plus_ERCC92.fa'
 
         human:
             star: 

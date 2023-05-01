@@ -1,26 +1,30 @@
-#PBS -l walltime=100:00:00
-#PBS -l mem=32gb
-#PBS -l nodes=1:ppn=1
-#PBS -m abe
-#PBS -N demultiplex_workflow
-#PBS -W umask=0022
+#!/bin/bash
+#SBATCH -t 100:00:00
+#SBATCH --mem=32G
+#SBATCH -c 1
+#SBATCH -N 1
+#SBATCH -J demultiplex_workflow
+#SBATCH -o demultiplex_workflow.o%j
+#SBATCH -e demultiplex_workflow.e%j
+#SBATCH --mail-type=ALL
+##SBATCH SLURM_UMASK=022 
 
 echo "Pipeline started: $(date)"
 
 messages=/secondary/projects/genomicscore/tools/boilerplate_demux/novaseq/messages/ # Larry's message files here
+FC_ID=$(cat SampleSheet.csv | grep "Experiment Name" | cut -d ',' -f2)
 
-
-barcodes_perl=${PBS_O_WORKDIR}/demultiplex/barcodes.pl # Perl script to quantify barcodes
-mergenlanes_script=${PBS_O_WORKDIR}/demultiplex/mergelanes.pl
+barcodes_perl=${SLURM_SUBMIT_DIR}/demultiplex/barcodes.pl # Perl script to quantify barcodes
+mergenlanes_script=${SLURM_SUBMIT_DIR}/demultiplex/mergelanes.pl
 barcodes_perl=/secondary/projects/genomicscore/tools/boilerplate_demux/Barcodes.pl # Perl script to quantify barcodes
-basecalls_dir=${PBS_O_WORKDIR}/Data/Intensities/BaseCalls/
-cd ${PBS_O_WORKDIR} #Change into the run directory
+basecalls_dir=${SLURM_SUBMIT_DIR}/Data/Intensities/BaseCalls/
+cd ${SLURM_SUBMIT_DIR} #Change into the run directory
 #======================================================================= Get the run information
-rundate="$(cut -d '_' -f1 <<< `basename ${PBS_O_WORKDIR}` )"
-machine="$(cut -d '_' -f2 <<< `basename ${PBS_O_WORKDIR}` )"
+rundate="$(cut -d '_' -f1 <<< `basename ${SLURM_SUBMIT_DIR}` )"
+machine="$(cut -d '_' -f2 <<< `basename ${SLURM_SUBMIT_DIR}` )"
 machine_grep="@${machine}" # used to get overrepresented barcodes in the demultiplexing workflow
-runnumber="$(cut -d '_' -f3 <<< `basename ${PBS_O_WORKDIR}` )"
-flowcell="$(cut -d '_' -f4 <<< `basename ${PBS_O_WORKDIR}` )"
+runnumber="$(cut -d '_' -f3 <<< `basename ${SLURM_SUBMIT_DIR}` )"
+flowcell="$(cut -d '_' -f4 <<< `basename ${SLURM_SUBMIT_DIR}` )"
 NOW=`date '+%F_%H:%M:%S'`;
 echo "
 Information:
@@ -50,14 +54,14 @@ elif [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
 else
 	echo "Exiting:"
 	echo "	Did not recognize the sequencing machine (${machine})."
-	echo "	(If you are running this is an interactive job: export PBS_O_WORKDIR=\$PWD)"
+	echo "	(If you are running this is an interactive job: export PWD=\$PWD)"
 fi
 #======================================================================= Test if there are project codes
 n_project_codes=$(cat SampleSheet.csv|grep -A10000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq|wc -l)
 if [ ! ${n_project_codes} -gt 0 ]; then # if no project codes, fail
 	echo "Exiting:"
 	echo "	I found zero (${n_project_codes}) project codes! These need to be included!"
-	echo "	(If you are running this is an interactive job: export PBS_O_WORKDIR=\$PWD)"
+	echo "	(If you are running this is an interactive job: export PWD=\$PWD)"
 	exit
 else
 	echo "Information:"
@@ -84,9 +88,9 @@ echo "	There are ${n_sample_lane} lane/samples combinations (ignore if nextseq).
 #~ exit
 
 # working directory assumed to be directory containing Data/ and demultiplex/ 
-cd ${PBS_O_WORKDIR}
+cd ${SLURM_SUBMIT_DIR}
 
-snakemake_module="bbc/snakemake/snakemake-6.15.0" 
+snakemake_module="bbc2/snakemake/snakemake-7.25.0" 
 module load $snakemake_module
 
 # make logs dir if it does not exist already. Without this, logs/ is automatically generate only after the first run of the pipeline
@@ -95,9 +99,9 @@ logs_dir="snakemake_job_logs/" # snakemake_runs
 
 snakefile="demultiplex/bcl2fastq_snake/Snakefile"
 
-#snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${PBS_JOBID}.png
-#snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${PBS_JOBID}.png
-#snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${PBS_JOBID}.png
+#snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${SLURM_JOBID}.png
+#snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${SLURM_JOBID}.png
+#snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${SLURM_JOBID}.png
 
 echo "Start snakemake workflow. $(date)" >&1
 echo "Start snakemake workflow. $(date)" >&2
@@ -108,21 +112,20 @@ snakemake \
 --snakefile $snakefile \
 --use-envmodules \
 --jobs 40 \
---cluster "ssh ${PBS_O_LOGNAME}@submit 'module load $snakemake_module; cd ${PBS_O_WORKDIR}; qsub \
--q ${PBS_O_QUEUE} \
--V \
--l nodes=1:ppn={threads} \
--l mem={resources.mem_gb}gb \
--l walltime=100:00:00 \
--W umask=0022 \
--o {log.stdout} \
--e {log.stderr}'"
+--cluster "ssh ${SLURM_JOB_USER}@submit001.hpc.vai.org 'module load $snakemake_module; cd $SLURM_SUBMIT_DIR; mkdir -p snakemake_job_logs/{rule}; sbatch \
+-p ${SLURM_JOB_PARTITION} \
+--export=ALL \
+-c {threads} \
+--mem={resources.mem_gb}G \
+-t 100:00:00 \
+-o snakemake_job_logs/{rule}/{resources.log_prefix}.o \
+-e snakemake_job_logs/{rule}/{resources.log_prefix}.e'"
 
 echo "snakemake workflow done. $(date)" >&1
 echo "snakemake workflow done. $(date)" >&2
 
-cd $PBS_O_WORKDIR
-diagf=${PBS_O_WORKDIR}/diagnostic_files/
+cd $PWD
+diagf=${SLURM_SUBMIT_DIR}/diagnostic_files/
 mkdir -p ${diagf}
 echo "
 Information:
@@ -192,12 +195,12 @@ fi
 
 
 ### Link in Multiqc files to diagnostics folder
-for p in `cat ${PBS_O_WORKDIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
-	mqc=${basecalls_dir}${p}/multiqc_report.html
+for p in `cat ${SLURM_SUBMIT_DIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
+	mqc=${basecalls_dir}${p}-${FC_ID}/multiqc_report.html
 	if [ -f $mqc ]; then
-		ln -sf ${mqc} ${diagf}${p}_multiqc_report.html
+		ln -sf ${mqc} ${diagf}${p}-${FC_ID}_multiqc_report.html
 	else
-		echo "Did not find multiqc file for project \"${p}\" ($mqc)"
+		echo "Did not find multiqc file for project \"${p}-${FC_ID}\" ($mqc)"
 	fi
 done
 
