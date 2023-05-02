@@ -26,7 +26,7 @@ Go to the run directory.
 
 OPTIONAL: Add the directive for email notifications in demultiplex/bcl2fastq_snake.sh file (#PBS -M your.email@vai.org)
 
-```qsub -q genomics demultiplex/bcl2fastq_snake.sh```
+```sbatch -p genomics demultiplex/bcl2fastq_snake.sh```
 
 
 ## Legacy workflow (non-parallelized fastqc and fastq_screen)
@@ -39,7 +39,7 @@ Go to the run directory.
 
 OPTIONAL: change the email in demultiplex/bcl2fastq.sh file (#PBS -M your.email@vai.org)
 
-```qsub -q genomics demultiplex/bcl2fastq.sh```
+```sbatch -p genomics demultiplex/bcl2fastq.sh```
 
 If this doesn't work, check the demultiplex_workflow.[oe]JOB.ID files that are in the run directory.
 

@@ -264,8 +264,8 @@ rule cat_fqs_undetermined:
             shell("ln -sr {input} {output}")
 
 def get_cat_reads (wildcards):
-    trim_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_L000_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read)
-    return trim_fqs
+    cat_inp_fqs = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/{sample}_L000_R{read}_001.fastq.gz"
+    return cat_inp_fqs
 
 rule trim_read_length:
     """
@@ -367,8 +367,8 @@ rule multiqc:
 
 
 def get_trim_reads(wildcards):
-    qc_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/Trimmed/{sample.Sample_Name}_L000_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read)
-    return qc_fqs
+    trim_inp_fqs = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Trimmed/{sample}_L000_R{read}_001.fastq.gz"
+    return trim_inp_fqs
 
 rule fastqc:
     """

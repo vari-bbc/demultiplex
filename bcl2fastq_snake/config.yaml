@@ -4,7 +4,7 @@ min_reads: 100
 # Complexity
 complexity:
     # Run preseq. Either True or False. Don't quote.
-    run: True
+    run: False
    
     # Preseq errors out if there are too few reads. Not sure what the actual cutoff is
     preseq_min_reads: 10000
