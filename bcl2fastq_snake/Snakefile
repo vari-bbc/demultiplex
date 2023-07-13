@@ -6,9 +6,17 @@ import os
 import re
 from snakemake.utils import validate, min_version
 ##### set minimum snakemake version #####
-min_version("5.28.0")
+min_version("6.15.0")
 
 configfile: "demultiplex/bcl2fastq_snake/config.yaml"
+
+snakemake_dir = os.getcwd() + "/"
+
+# make a tmp directory for analyses
+tmp_dir = os.path.join(snakemake_dir, "tmp")
+if not os.path.exists(tmp_dir):
+    os.mkdir(tmp_dir)
+
 
 # minimum reads to be considered a low read fastq
 min_reads = config['min_reads'] #100
@@ -39,6 +47,11 @@ with open('SampleSheet.csv') as f:
                 read_lens.append(read_len_search.group(1))
 s.seek(0) # "rewind" to the beginning of the StringIO object
 
+
+# Get FC ID
+fc_df = pd.read_csv('SampleSheet.csv', index_col=0, usecols= [0,1], names= ['Idx','Dta'])
+fc_id = fc_df['Dta']['Experiment Name']
+
 # read in the csv with the header lines removed
 # Convert Sample_Id and Sample_Name from int to str
 samples = pd.read_csv(s, dtype={"Sample_ID" : str, "Sample_Name" : str })
@@ -61,24 +74,44 @@ avail_read = ["1", "2"] if paired_end else ["1"]
 if 'Lane' in samples.columns:
     lanes = pd.unique(samples['Lane'])
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),
+    sample_fqs_fc_id = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),    
     undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
 else:
     lanes = [1,2,3,4] # if no Lane column in SampleSheet.csv, assume it is NextSeq and that each sample spread over 4 lanes.
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),
+    sample_fqs_fc_id = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),   
     undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
 
 
 missing_fq_yamls = expand("Data/Intensities/BaseCalls/{project}/missing_fastqs_mqc.yaml", project=np.unique(samples['Sample_Project']))
-low_counts_fq_yamls = expand("Data/Intensities/BaseCalls/{project}/low_counts_fastqs_mqc.yaml", project=np.unique(samples['Sample_Project']))
+low_counts_fq_yamls = expand("Data/Intensities/BaseCalls/{project}-" + fc_id + "/low_counts_fastqs_mqc.yaml", project=np.unique(samples['Sample_Project']))
 #fastqc_and_screen_out = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']) + expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen'])
+
+project_names = samples.Sample_Project.values
+uniq_projects = pd.unique(project_names).tolist()
+
+### Check if they are multiple lengths in the Description column, if yes, what are they, run trimm rule
+mul_reads = samples.Description.unique()
+mul_lens = len(mul_reads)
+
+
+if mul_lens > 1:
+    mul_lens_run = True
+    for i in mul_reads:
+        assert(i <= int(read_lens[0])), "The read length specified in Description is bigger that the one in [Reads]"
+
+    grouped_samples = samples.groupby(['Sample_Name']).min()
+    trim_df = grouped_samples['Description'].to_frame()
+else:
+    mul_lens_run = False
 
 rule all:
     input:
-        sample_fqs,
+        sample_fqs_fc_id,
         undetermined_fqs,
-        expand("Data/Intensities/BaseCalls/{project}/multiqc_report.html", project=pd.unique(samples['Sample_Project'])), #if "run_qc" in config else [],
+        expand("Data/Intensities/BaseCalls/{project}-" + fc_id + "/multiqc_report.html", project=pd.unique(samples['Sample_Project'])), #if "run_qc" in config else [],
         expand("Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz", read=avail_read),
-        expand("Data/Intensities/BaseCalls/{project}/md5sums.txt", project=pd.unique(samples['Sample_Project']))
+        expand("Data/Intensities/BaseCalls/{project}-" + fc_id + "/md5sums.txt", project=pd.unique(samples['Sample_Project']))
         #fastqc_and_screen_out if "run_qc" in config else [],
         #expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
         #expand("Data/Intensities/BaseCalls/Undetermined_S0_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
@@ -100,26 +133,26 @@ rule bcl2fastq:
     params:
     log:
         log="bcl2fastq.log",
-        stdout="snakemake_job_logs/bcl2fastq/out.o",
-        stderr="snakemake_job_logs/bcl2fastq/out.e"
     benchmark:
         "snakemake_job_logs/benchmarks/bcl2fastq/benchmark.txt"
     envmodules:
-        "bbc/bcl2fastq2/bcl2fastq2-2.20.0"
+        "bbc2/bcl2fastq2/bcl2fastq2-2.20.0"
     threads: 24
     resources:
-        mem_gb = 180
+        mem_gb = 180,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         bcl2fastq &> {log.log}
        
-        touch {output.missing_fastqs_log}
-
-        # Add header lines for the missing fastqs yaml
-        for yaml_file in {output.missing_fastqs_yaml}
-        do
-            echo "id: 'missing-fqs'\nsection_name: 'Empty Fastq files after dmux'\ndescription: 'This section lists all the fastq files that ended up having 0 reads after bcl2fastq.'\nplot_type: 'html'\ndata: |\n    <ul>" > $yaml_file
-        done
+        # Check if bcl2fastq ran. Try run without mismatches
+        if [[ ! -d "Data/Intensities/BaseCalls/Stats" ]]; then
+            echo "It's possible there was barcode collision. \n Running bcl2fastq without barcode mismatches \n (--barcode-mismatch 0) "
+            bcl2fastq --barcode-mismatch 0 &> {log.log}
+            touch Data/Intensities/BaseCalls/barcode_mismatch_0
+        fi
+        
+        touch missing_fastqs.log
 
         # Add missing files to the missing fastqs yaml files
         for fastq in {output.sample_fqs}
@@ -142,11 +175,44 @@ rule bcl2fastq:
         touch {output.done}
         """
 
+rule add_FC_ID:
+    """
+    Add the FC_ID to the project folder name
+    """
+    input:
+        "bcl2fastq.done",
+        sample_fqs,
+    output:
+        sample_fqs_fc_id,
+    params:
+        fc_ids = fc_id,
+        uniq_project_list = uniq_projects,
+    benchmark:
+        "snakemake_job_logs/benchmarks/add_fc_id/benchmark.txt"
+    threads: 1
+    resources:
+        mem_gb = 8,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:       
+        """
+        # Add the FC_ID to the project folder name
+        cd Data/Intensities/BaseCalls/
+        FC_ID="{params.fc_ids}"
+        for dir in {params.uniq_project_list} ; do
+            if [[ -d "$dir" ]]; then
+                TGT="${{dir}}-${{FC_ID}}"
+                mv -T "$dir" "$TGT"
+            fi
+            
+        done
+     
+        """ 
+
 def get_all_lanes_fqs(wildcards):
     if 'Lane' in samples.columns:
-        fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read)
+        fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read)
     else:
-        fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read, lane=lanes)
+        fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples[samples['Sample_Name'] == wildcards.sample].itertuples(), read=wildcards.read, lane=lanes)
 
     return fqs
 
@@ -158,17 +224,17 @@ rule cat_fqs:
         get_all_lanes_fqs
         
     output:
-        "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz"
+        "Data/Intensities/BaseCalls/{project}-" + fc_id + "/{sample}_L000_R{read}_001.fastq.gz"
     params:
-    log:
-        stdout="snakemake_job_logs/cat_fqs/{project}/{sample}_R{read}.o",
-        stderr="snakemake_job_logs/cat_fqs/{project}/{sample}_R{read}.e"
     benchmark:
-        "snakemake_job_logs/benchmarks/cat_fqs/{project}/{sample}_R{read}.txt"
+        "snakemake_job_logs/benchmarks/cat_fqs/{project}-" + fc_id + "/{sample}_R{read}.txt"
     envmodules:
     threads: 1
     resources:
-        mem_gb = 22
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    wildcard_constraints:
+        sample="[^/]+"
     run:
         if len(input) > 1:
             shell("cat {input} > {output}")
@@ -184,20 +250,48 @@ rule cat_fqs_undetermined:
     output:
         "Data/Intensities/BaseCalls/Undetermined_L000_R{read}_001.fastq.gz"
     params:
-    log:
-        stdout="snakemake_job_logs/cat_fqs_undetermined/Undetermined_L000_R{read}.o",
-        stderr="snakemake_job_logs/cat_fqs_undetermined/Undetermined_L000_R{read}.e"
     benchmark:
         "snakemake_job_logs/benchmarks/cat_fqs_undetermined/Undetermined_L000_R{read}.txt"
     envmodules:
     threads: 1
     resources:
-        mem_gb = 22
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     run:
         if len(input) > 1:
             shell("cat {input} > {output}")
         else:
             shell("ln -sr {input} {output}")
+
+def get_cat_reads (wildcards):
+    cat_inp_fqs = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/{sample}_L000_R{read}_001.fastq.gz"
+    return cat_inp_fqs
+
+rule trim_read_length:
+    """
+    Trimming the lengths of reads if there is a difference between projects' desired length
+    """
+    input:
+        get_cat_reads,
+    output:
+        "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Trimmed/{sample}_L000_R{read}_001.fastq.gz",
+    params:
+        read_length = int(read_lens[0]),
+        crop_length = lambda wildcards: trim_df['Description'][wildcards.sample]
+    benchmark:
+        "snakemake_job_logs/benchmarks/trim_read_length/{project}-" + fc_id + "/{sample}_R{read}.txt"
+    envmodules:
+        "bbc/Trimmomatic/trimmomatic-0.39"
+    threads: 4
+    resources:
+        mem_gb = 8,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+            java -jar $TRIMM SE -threads {threads} {input} {output} CROP:{params.crop_length}
+
+
+        """     
 
 # rule symlink_undet_to_each_proj:
 #     """
@@ -231,7 +325,7 @@ def get_post_alignment_metrics(wildcards):
     input_files = []
     if config['complexity']['run']:
 
-        align_dir = "Data/Intensities/BaseCalls/{project}/Align/{aligner}".format(project=wildcards.project, aligner = 'star' if config['complexity']['DNA_or_RNA']=='RNA' else 'bwa')
+        align_dir = "Data/Intensities/BaseCalls/{{project}}-" + fc_id + "/Align/{aligner}".format(project=wildcards.project, aligner = 'star' if config['complexity']['DNA_or_RNA']=='RNA' else 'bwa')
         sample_names = samples[samples['Sample_Project'] == wildcards.project]['Sample_Name']
         #aligner_suff = '' if config['complexity']['DNA_or_RNA']=="DNA" else '.Aligned.sortedByCoord.out'
         #input_files = expand(align_dir + "/flagstat/{sample}{aligner_suff}.flagstat", sample=sample_names, aligner_suff=aligner_suff)
@@ -246,26 +340,24 @@ rule multiqc:
     Make multiQC report.
     """
     input:
-        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=avail_read, prog=['fastqc','screen']),
+        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}-" + fc_id + "/FastQC/{sample.Sample_Name}_L000_R{read}_001_{prog}.html", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(), read=avail_read, prog=['fastqc','screen']),
         #expand("Data/Intensities/BaseCalls/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
-        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
+        lambda wildcards: expand("Data/Intensities/BaseCalls/{{project}}-" + fc_id + "/Align/preseq_complexity/{sample.Sample_Name}.lc_extrap.txt", sample=samples[samples['Sample_Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
         low_counts_fq_yamls,
         get_post_alignment_metrics,
     output:
-        "Data/Intensities/BaseCalls/{project}/multiqc_report.html",
-        directory("Data/Intensities/BaseCalls/{project}/multiqc_data")
-    log:
-        stdout="snakemake_job_logs/multiqc/{project}.o",
-        stderr="snakemake_job_logs/multiqc/{project}.e",
+        "Data/Intensities/BaseCalls/{project}-" + fc_id + "/multiqc_report.html",
+        directory("Data/Intensities/BaseCalls/{project}-" + fc_id + "/multiqc_data")
     benchmark:
-        "snakemake_job_logs/benchmarks/multiqc/{project}.txt"
+        "snakemake_job_logs/benchmarks/multiqc/{project}-" + fc_id + ".txt"
     params:
-        project_dir="Data/Intensities/BaseCalls/{project}/",
+        project_dir="Data/Intensities/BaseCalls/{project}-" + fc_id + "/",
     threads: 1
     resources:
-        mem_gb=32
+        mem_gb=32,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     envmodules:
-        "bbc/multiqc/multiqc-1.9"
+        "bbc2/multiqc/multiqc-1.14"
     shell:
         """
         multiqc -f \
@@ -274,29 +366,31 @@ rule multiqc:
         """
 
 
+def get_trim_reads(wildcards):
+    trim_inp_fqs = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Trimmed/{sample}_L000_R{read}_001.fastq.gz"
+    return trim_inp_fqs
+
 rule fastqc:
     """
     Run fastqc for merged (across lanes) sample files.
     """
     input:
-        "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz"
+        get_trim_reads if mul_lens_run else get_cat_reads,
     output:
-        html="Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_fastqc.html",
-        files=directory("Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_fastqc"),
-        done=touch("Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_fastqc/done")
+        html="Data/Intensities/BaseCalls/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_fastqc.html",
+        files=directory("Data/Intensities/BaseCalls/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_fastqc"),
+        done=touch("Data/Intensities/BaseCalls/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_fastqc/done")
     params:
-        outdir="Data/Intensities/BaseCalls/{project}/FastQC/"
-    log:
-        stdout="snakemake_job_logs/fastqc/{project}/{sample}_R{read}.o",
-        stderr="snakemake_job_logs/fastqc/{project}/{sample}_R{read}.e"
+        outdir="Data/Intensities/BaseCalls/{project}-" + fc_id + "/FastQC/"
     benchmark:
-        "snakemake_job_logs/benchmarks/fastqc/{project}/{sample}_R{read}.txt"
+        "snakemake_job_logs/benchmarks/fastqc/{project}-" + fc_id + "/{sample}_R{read}.txt"
     envmodules:
-        "bbc/fastqc/fastqc-0.11.9"
+        "bbc2/fastqc/fastqc-0.12.1"
     threads: 1
     priority: 50
     resources:
-        mem_gb = 22
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         if [ -s {input} ]
@@ -313,22 +407,20 @@ rule find_low_count_fqs:
     Check fastq files to find those with low read counts.
     """
     input:
-        expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/FastQC/{sample.Sample_Name}_L000_R{read}_001_fastqc/done", sample=samples.itertuples(), read=avail_read)
+        expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/FastQC/{sample.Sample_Name}_L000_R{read}_001_fastqc/done", sample=samples.itertuples(), read=avail_read)
     output:
         low_counts_yaml=low_counts_fq_yamls,
         low_counts_log="low_count_fastqs.log"
     params:
         min_reads=min_reads
-    log:
-        stdout="snakemake_job_logs/find_low_count_fqs/out.o",
-        stderr="snakemake_job_logs/find_low_count_fqs/err.e"
     benchmark:
         "snakemake_job_logs/benchmarks/find_low_count_fqs/bench.txt"
     envmodules:
     threads: 1
     priority: 50
     resources:
-        mem_gb = 22
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         # Add header lines for the low_counts fastqs yaml
@@ -401,22 +493,20 @@ rule fastq_screen:
     Run fastq_screen for merged (across lanes) sample files.
     """
     input:
-        "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz"
+        get_trim_reads if mul_lens_run else get_cat_reads
     output:
-        html = "Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_screen.html",
-        txt = "Data/Intensities/BaseCalls/{project}/FastQC/{sample}_L000_R{read}_001_screen.txt",
+        html = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_screen.html",
+        txt = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_screen.txt",
     params:
-        outdir = "Data/Intensities/BaseCalls/{project}/FastQC/"
-    log:
-        stdout="snakemake_job_logs/fastq_screen/{project}/{sample}_R{read}.o",
-        stderr="snakemake_job_logs/fastq_screen/{project}/{sample}_R{read}.e"
+        outdir = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/FastQC/"
     benchmark:
-        "snakemake_job_logs/benchmarks/fastq_screen/{project}/{sample}_R{read}.txt"
+        "snakemake_job_logs/benchmarks/fastq_screen/{project}-" + fc_id + "/{sample}_R{read}.txt"
     envmodules:
-        "bbc/fastq_screen/fastq_screen-0.14.0"
+        "bbc2/fastq_screen/fastq_screen-0.14.0"
     threads: 4
     resources:
-        mem_gb = 88
+        mem_gb = 88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         if [ -s {input} ]
@@ -455,25 +545,23 @@ rule fastq_screen:
 
 rule bwa:
     input:
-        expand("Data/Intensities/BaseCalls/{{project}}/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
+        expand("Data/Intensities/BaseCalls/{{project}}-" + fc_id + "/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
     output:
-        outbam=temp("Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam"),
-        outbai="Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam.bai",
-        idxstat="Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam.idxstat",
+        outbam=temp("Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/bwa/{sample}.bam"),
+        outbai="Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/bwa/{sample}.bam.bai",
+        idxstat="Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/bwa/{sample}.bam.idxstat",
         #flagstat="Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam.flagstat"
-    log:
-        stdout="snakemake_job_logs/bwa/{project}/{sample}.o",
-        stderr="snakemake_job_logs/bwa/{project}/{sample}.e",
     benchmark:
-        "snakemake_job_logs/benchmarks/bwa/{project}/{sample}.txt"
+        "snakemake_job_logs/benchmarks/bwa/{project}-" + fc_id + "/{sample}.txt"
     params:
         bwa_idx=config['complexity']['refs'][complexity_ref_name]['bwa']['index'],
     threads: 4
     envmodules:
-        "bbc/bwa/bwa-0.7.17",
-        "bbc/samtools/samtools-1.12",
+        "bbc2/bwa/bwa-0.7.17",
+        "bbc2/samtools/samtools-1.17",
     resources:
-        mem_gb=88
+        mem_gb=88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         bwa mem \
@@ -487,46 +575,36 @@ rule bwa:
         -o {output.outbam} \
         -
 
-        echo "END bwa" >> {log.stdout}
-        echo "END bwa" >> {log.stderr}
-
         samtools index -@ {threads} {output.outbam}
-
-        echo "END indexing" >> {log.stdout}
-        echo "END indexing" >> {log.stderr}
         
         samtools idxstats -@ {threads} {output.outbam} > {output.idxstat}
-        echo "END idxstats" >> {log.stdout}
-        echo "END idxstats" >> {log.stderr}
         
         """
 
 rule star:
     input:
-        expand("Data/Intensities/BaseCalls/{{project}}/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
+        expand("Data/Intensities/BaseCalls/{{project}}-" + fc_id + "/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
     output:
-        outbam =              temp("Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Aligned.sortedByCoord.out.bam"),
-        bai =                 "Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Aligned.sortedByCoord.out.bam.bai",
-        log_final =           "Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Log.final.out",
-        log =                 "Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Log.out",
-        sj =                  "Data/Intensities/BaseCalls/{project}/Align/star/{sample}.SJ.out.tab",
-        g_dir =               directory("Data/Intensities/BaseCalls/{project}/Align/star/{sample}._STARgenome"),
-        pass1_dir =           directory("Data/Intensities/BaseCalls/{project}/Align/star/{sample}._STARpass1"),
-        idxstat =             "Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Aligned.sortedByCoord.out.bam.idxstat"
-    log:
-        stdout = "snakemake_job_logs/star/{project}/{sample}.o",
-        stderr = "snakemake_job_logs/star/{project}/{sample}.e",
+        outbam =              temp("Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam"),
+        bai =                 "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam.bai",
+        log_final =           "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}.Log.final.out",
+        log =                 "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}.Log.out",
+        sj =                  "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}.SJ.out.tab",
+        g_dir =               directory("Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}._STARgenome"),
+        pass1_dir =           directory("Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}._STARpass1"),
+        idxstat =             "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam.idxstat"
     benchmark:
-        "snakemake_job_logs/benchmarks/star/{project}/{sample}.txt"
+        "snakemake_job_logs/benchmarks/star/{project}-" + fc_id + "/{sample}.txt"
     params:
         index = config['complexity']['refs'][complexity_ref_name]['star']['index'],
-        outprefix = "Data/Intensities/BaseCalls/{project}/Align/star/{sample}."
+        outprefix = "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}."
     threads: 4
     envmodules:
-        "bbc/STAR/STAR-2.7.8a",
-        "bbc/samtools/samtools-1.12",
+        "bbc2/STAR/STAR-2.7.10a",
+        "bbc2/samtools/samtools-1.17",
     resources:
-        mem_gb=88
+        mem_gb=88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         STAR \
@@ -537,20 +615,13 @@ rule star:
         --readFilesCommand zcat \
         --outSAMtype BAM SortedByCoordinate \
         --outFileNamePrefix {params.outprefix} \
-        --outStd Log 2> {log.stderr}
+        --outStd Log
 
-        echo "END star" >> {log.stdout}
-        echo "END star" >> {log.stderr}
 
         samtools index -@ {threads} {output.outbam}
-
-        echo "END indexing" >> {log.stdout}
-        echo "END indexing" >> {log.stderr}
         
         samtools idxstats {output.outbam} > {output.idxstat}
 
-        echo "END idxstats" >> {log.stdout}
-        echo "END idxstats" >> {log.stderr}
  
         """
 
@@ -560,22 +631,20 @@ rule CollectAlignmentSummaryMetrics:
     Run Picard CollectAlignmentSummaryMetrics.
     """
     input:
-        "Data/Intensities/BaseCalls/{project}/Align/{aligner}/{sample}.Aligned.sortedByCoord.out.bam" if config['complexity']['DNA_or_RNA']=='RNA' else "Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam" 
+        "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/{aligner}/{sample}.Aligned.sortedByCoord.out.bam" if config['complexity']['DNA_or_RNA']=='RNA' else "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/bwa/{sample}.bam" 
     output:
-        out="Data/Intensities/BaseCalls/{project}/Align/{aligner}/CollectAlignmentSummaryMetrics/{sample}.bam.aln_metrics"
+        out="Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/{aligner}/CollectAlignmentSummaryMetrics/{sample}.bam.aln_metrics"
     params:
-        temp="Data/Intensities/BaseCalls/{project}/Align/{aligner}/CollectAlignmentSummaryMetrics/",
+        temp="Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/{aligner}/CollectAlignmentSummaryMetrics/",
         reffasta=lambda wildcards: config['complexity']['refs'][complexity_ref_name][wildcards.aligner]["fasta"]
-    log:
-        stdout="snakemake_job_logs/{aligner}/CollectAlignmentSummaryMetrics/{project}/{sample}.o",
-        stderr="snakemake_job_logs/{aligner}/CollectAlignmentSummaryMetrics/{project}/{sample}.e"
     benchmark:
-        "snakemake_job_logs/benchmarks/{aligner}/CollectAlignmentSummaryMetrics/{project}/{sample}.txt"
+        "snakemake_job_logs/benchmarks/{aligner}/CollectAlignmentSummaryMetrics/{project}-" + fc_id + "/{sample}.txt"
     envmodules:
-        "bbc/picard/picard-2.23.3"
+        "bbc/picard/picard-2.23.3-vari"
     threads: 4
     resources: 
-        mem_gb = 64
+        mem_gb = 64,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         java -Xms8g -Xmx{resources.mem_gb}g -Djava.io.tmpdir={params.temp} -jar $PICARD CollectAlignmentSummaryMetrics -I {input} -O {output.out} -R {params.reffasta}  
@@ -586,24 +655,22 @@ rule preseq_complexity:
     Run preseq c_curve and lc_extrap on the BAMs.
     """
     input:
-        "Data/Intensities/BaseCalls/{project}/Align/star/{sample}.Aligned.sortedByCoord.out.bam" if config['complexity']['DNA_or_RNA']=='RNA' else "Data/Intensities/BaseCalls/{project}/Align/bwa/{sample}.bam" 
+        "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam" if config['complexity']['DNA_or_RNA']=='RNA' else "Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/bwa/{sample}.bam" 
     output:
-        filtbam=temp("Data/Intensities/BaseCalls/{project}/Align/preseq_complexity/{sample}.filt.bam"),
-        ccurve="Data/Intensities/BaseCalls/{project}/Align/preseq_complexity/{sample}.c_curve.txt",
-        lcextrap="Data/Intensities/BaseCalls/{project}/Align/preseq_complexity/{sample}.lc_extrap.txt",
-    log:
-        stdout="snakemake_job_logs/preseq_complexity/{project}/{sample}.o",
-        stderr="snakemake_job_logs/preseq_complexity/{project}/{sample}.e"
+        filtbam=temp("Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/preseq_complexity/{sample}.filt.bam"),
+        ccurve="Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/preseq_complexity/{sample}.c_curve.txt",
+        lcextrap="Data/Intensities/BaseCalls/{project}-" + fc_id + "/Align/preseq_complexity/{sample}.lc_extrap.txt",
     benchmark:
-        "snakemake_job_logs/benchmarks/preseq_complexity/{project}/{sample}.txt"
+        "snakemake_job_logs/benchmarks/preseq_complexity/{project}-" + fc_id + "/{sample}.txt"
     envmodules:
-        "bbc/preseq/preseq-3.1.2",
-        "bbc/samtools/samtools-1.12"
+        "bbc/preseq/preseq-3.1.2-vari",
+        "bbc2/samtools/samtools-1.17"
     params:
         min_reads=max(min_reads, config['complexity']['preseq_min_reads']),
         seg_len_max=config['complexity']['preseq_seq_len_max']#10000000,
     resources:
-        mem_gb=88
+        mem_gb=88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     threads: 4
     shell:
         """
@@ -642,26 +709,24 @@ rule preseq_complexity:
 
 rule md5sum:
     input:
-        lambda wildcards: expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_L000_R{read}_001.fastq.gz",
+        lambda wildcards: expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_L000_R{read}_001.fastq.gz",
             sample=samples[samples['Sample_Project'] == wildcards.project].itertuples(),
             read=avail_read)
         # "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz",
     output:
-        "Data/Intensities/BaseCalls/{project}/md5sums.txt",
+        "Data/Intensities/BaseCalls/{project}-" + fc_id + "/md5sums.txt",
         # fqs = "Data/Intensities/BaseCalls/{project}/{sample}_L000_R{read}_001.fastq.gz"
-    log:
-        stdout="snakemake_job_logs/md5sum/{project}.o",
-        stderr="snakemake_job_logs/md5sum/{project}.e",
     benchmark:
-        "snakemake_job_logs/md5sum/{project}.txt",
+        "snakemake_job_logs/md5sum/{project}-" + fc_id + ".txt",
     params:
-        project_dir="Data/Intensities/BaseCalls/{project}/",
+        project_dir="Data/Intensities/BaseCalls/{project}-" + fc_id + "/",
         md5sum_file = 'md5sums.txt'
     threads: 2
     # envmodules:
     #     "bbc/parallel/parallel-20191122",
     resources:
-        mem_gb = 4
+        mem_gb = 4,
+        log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
         cd {params.project_dir}
