@@ -36,9 +36,9 @@ Information:
 "
 #~ exit
 #======================================================================= # Set some parameters based on the machine
-if [ ${machine} == 'FS10002737' ]; then # ISEQ -f12
-	echo "This is an ISEQ run."
-	project_code_field=10 # 12 for iseq
+if [ ${machine} == 'MN01106' ]; then # MINISEQ -f12
+	echo "This is an MINISEQ run."
+	project_code_field=10 # 12 for miniseq
 	read2_number_of_cycles=$(cat RunParameters.xml|grep '<ReadType>'|sed -e 's/<ReadType>//'|sed -e 's/<\/ReadType>//'|sed -e 's/ //g') 
 	samplesheet_grep='^Lane'
 elif [ ${machine} == 'A00426' ]; then # NOVASEQ -f10

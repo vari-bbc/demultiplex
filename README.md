@@ -3,7 +3,7 @@
 Table of Contents
 =================
 
-   * [demultiplex for NovaSeq, NextSeq, and iSeq](#demultiplex-for-novaseq-nextseq-and-iseq)
+   * [demultiplex for NovaSeq, NextSeq, and MiniSeq](#demultiplex-for-novaseq-nextseq-and-miniseq)
       * [New workflow](#new-workflow)
       * [Legacy workflow (non-parallelized fastqc and fastq_screen)](#legacy-workflow-non-parallelized-fastqc-and-fastq_screen)
       * [Miscellaneous](#miscellaneous)
@@ -14,7 +14,7 @@ Table of Contents
          * [Calculate md5sums for all fastq files in the run directory](#calculate-md5sums-for-all-fastq-files-in-the-run-directory)
    * [demultiplex for sc-atac](#demultiplex-for-sc-atac)
 
-# demultiplex for NovaSeq, NextSeq, and iSeq
+# demultiplex for NovaSeq, NextSeq, and MiniSeq
 
 ## New workflow
 
