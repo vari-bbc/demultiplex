@@ -28,7 +28,7 @@ my $sample_counter=1;
 my $nlanes=0;
 my %samples_fail_qc=();
 while(<$in>){
-	if($_=~/^Lane,Sa/ || $_=~/^Sample_ID,Sa/){ # works with Novaseq, iSeq & NextSeq sample sheets 
+	if($_=~/^Lane,Sa/ || $_=~/^Sample_ID,Sa/){ # works with Novaseq, MiniSeq & NextSeq sample sheets 
 		$trigger=1;
 		next;
 	}
@@ -38,15 +38,15 @@ while(<$in>){
 		if($machine eq 'A00426'){ # Novaseq
 			#~ print "NOVASEQ...\n";
 			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
-		}elsif($machine eq 'FS10002737'){ # iSeq
-			#~ print "ISEQ...\n";
+		}elsif($machine eq 'MN01106'){ # MiniSeq
+			#~ print "MINISEQ...\n";
 			($lane,$sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
 		}elsif($machine eq 'NS500653'){ # NextSeq
 			($sample,$Sample_Name,$Sample_Plate,$Sample_Well,$I7_Index_ID,$index,$I5_Index_ID,$index2,$Sample_Project,$Description) = split(',',$_);
 			print "NEXTSEQ... sample: $sample\n";
 			$nlanes=4;
 		}else{
-			die print "I don't recognize the machine |$machine|, (Not iSeq, NovaSeq, NextSeq) ??? \n";
+			die print "I don't recognize the machine |$machine|, (Not MiniSeq, NovaSeq, NextSeq) ??? \n";
 		}
 		
 		if($machine ne 'NS500653'){ # If it is not a Nextseq run, then add each lane/sample combination
