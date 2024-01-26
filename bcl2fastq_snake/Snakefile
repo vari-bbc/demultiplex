@@ -92,11 +92,12 @@ uniq_projects = pd.unique(project_names).tolist()
 mul_reads = samples.Description.unique()
 mul_lens = len(mul_reads)
 
-if mul_lens > 1 or int(mul_reads.min()) < int(read_lens[0]):
-    mul_lens_run = True
+if samples.Description.isnull().values.any():
+    mul_lens_run = False
+elif mul_lens > 1 or int(mul_reads.min()) < int(read_lens[0]):
+    mul_lens_run = True 
     for i in mul_reads:
         assert(i <= int(read_lens[0])), "The read length specified in Description is bigger that the one in [Reads]"
-
     grouped_samples = samples.groupby(['Sample_Name']).min()
     trim_df = grouped_samples['Description'].to_frame()
 else:
