@@ -94,6 +94,27 @@ logs_dir="snakemake_job_logs/" # snakemake_runs
 
 snakefile="demultiplex/bases2fastq_snake/Snakefile"
 
-snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${SLURM_JOBID}.png
-snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${SLURM_JOBID}.png
-snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${SLURM_JOBID}.png
+#snakemake --snakefile $snakefile --dag | dot -Tpng > $logs_dir/dag_${SLURM_JOBID}.png
+#snakemake --snakefile $snakefile --filegraph | dot -Tpng > $logs_dir/filegraph_${SLURM_JOBID}.png
+#snakemake --snakefile $snakefile --rulegraph | dot -Tpng > $logs_dir/rulegraph_${SLURM_JOBID}.png
+
+echo "Start snakemake workflow. $(date)" >&1
+echo "Start snakemake workflow. $(date)" >&2
+
+snakemake \
+-p \
+--latency-wait 20 \
+--snakefile $snakefile \
+--use-envmodules \
+--jobs 40 \
+--cluster "ssh ${SLURM_JOB_USER}@submit001.hpc.vai.org 'module load $snakemake_module; cd $SLURM_SUBMIT_DIR; mkdir -p snakemake_job_logs/{rule}; sbatch \
+-p ${SLURM_JOB_PARTITION} \
+--export=ALL \
+-c {threads} \
+--mem={resources.mem_gb}G \
+-t 100:00:00 \
+-o snakemake_job_logs/{rule}/{resources.log_prefix}.o \
+-e snakemake_job_logs/{rule}/{resources.log_prefix}.e'"
+
+echo "snakemake workflow done. $(date)" >&1
+echo "snakemake workflow done. $(date)" >&2
