@@ -8,7 +8,7 @@ from snakemake.utils import validate, min_version
 ##### set minimum snakemake version #####
 min_version("6.15.0")
 
-configfile: "../demultiplex/bases2fastq_snake/config.yaml" #for testing added the ../
+configfile: "demultiplex/bases2fastq_snake/config.yaml" #for testing added the ../
 
 snakemake_dir = os.getcwd() + "/"
 
@@ -39,7 +39,7 @@ with open('RunManifest.csv') as f:
         # following code for extracting out the read lengths to determine SE or PE
         if re.match('R[1-2]Cycles', line):
             reads_section = True
-        elif line.startswith('I'):
+        elif line.startswith('['):
             reads_section = False
         if reads_section:
             read_len_search = re.search(',(\d+)', line)
@@ -192,14 +192,15 @@ rule add_FC_ID:
         # Add the FC_ID to the project folder name
         cd Results/Samples/
         FC_ID="{params.fc_ids}"
-        for dir in {params.uniq_project_list} ; do
-            if [[ -d "$dir" ]]; then
-                TGT="${{dir}}-${{FC_ID}}"
-                rsync -a --remove-source-files "$dir"/ "$TGT"/
-                rm -r "$dir"/
-            fi
-            
-        done
+        if [[ -n ${{FC_ID}} ]]; then
+            for dir in {params.uniq_project_list} ; do
+                if [[ -d "$dir" ]]; then
+                    TGT="${{dir}}-${{FC_ID}}"
+                    rsync -a --remove-source-files "$dir"/ "$TGT"/
+                    rm -r "$dir"/
+                fi
+            done
+        fi
         cd ../../
         touch {output.mv_done}
      

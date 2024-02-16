@@ -37,7 +37,7 @@ Information:
 
 ###========================================== Set some paremeters based on the machine
 
-if [ ${machine} == 'P2-04' ]; then # AVITI -f5
+if [ ${machine} == 'AV234602' ]; then # AVITI -f5
 	echo "This is an AVITI run."
 	project_code_field=5 # 5 if theres a Lane column.
 	read2_number_of_cycles=$(cat RunParameters.json | grep -oP '(?<="R2": )\d+') 
@@ -65,10 +65,10 @@ fi
 
 ###========================================== Check the sample sheet
 
-nlanes=$(cat RunManifest_test.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f4|grep -v '^$'|sort|uniq|wc -l)
-n_sample_lane_unique=$(cat RunManifest_test.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f3-4|grep -v '^$'|grep -v '^,$'|sort|uniq|wc -l)
-n_sample_lane=$(cat RunManifest_test.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f2|grep -v '^$'|sort|wc -l)
-n_uniq_sample_names=$(cat RunManifest_test.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f1|grep -v '^$'|sort|uniq|wc -l) 
+nlanes=$(cat RunManifest.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f4|grep -v '^$'|sort|uniq|wc -l)
+n_sample_lane_unique=$(cat RunManifest.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f3-4|grep -v '^$'|grep -v '^,$'|sort|uniq|wc -l)
+n_sample_lane=$(cat RunManifest.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f2|grep -v '^$'|sort|wc -l)
+n_uniq_sample_names=$(cat RunManifest.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f1|grep -v '^$'|sort|uniq|wc -l) 
 
 if [ ! "${n_sample_lane_unique}" == "${n_sample_lane}" ]; then
 	echo "Exiting:"
