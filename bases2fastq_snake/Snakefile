@@ -53,7 +53,7 @@ fc_id = fc_df['Dta']['RunName']
 
 # read in the csv with the header lines removed
 # Convert SampleName from int to str
-samples = pd.read_csv(s, dtype={"SampleName" : str})
+samples = pd.read_csv(s, dtype={"SampleName" : str}, index_col=False)
 
 # Next we add a SampleNum column based on order of appearance in the SampleName column
 sample_names = samples.SampleName.values
