@@ -281,7 +281,7 @@ rule trim_read_length:
     benchmark:
         "snakemake_job_logs/benchmarks/trim_read_length/{project}-" + fc_id + "/{sample}_R{read}.txt"
     envmodules:
-        "bbc/Trimmomatic/trimmomatic-0.39"
+        "bbc2/Trimmomatic/trimmomatic-0.39"
     threads: 4
     resources:
         mem_gb = 8,
@@ -555,7 +555,7 @@ rule CollectAlignmentSummaryMetrics:
     benchmark:
         "snakemake_job_logs/benchmarks/{aligner}/CollectAlignmentSummaryMetrics/{project}-" + fc_id + "/{sample}.txt"
     envmodules:
-        "bbc/picard/picard-2.23.3-vari"
+        "bbc2/picard/picard-2.27.5"
     threads: 4
     resources: 
         mem_gb = 64,
@@ -578,7 +578,7 @@ rule preseq_complexity:
     benchmark:
         "snakemake_job_logs/benchmarks/preseq_complexity/{project}-" + fc_id + "/{sample}.txt"
     envmodules:
-        "bbc/preseq/preseq-3.1.2-vari",
+        "bbc2/preseq/preseq-3.2.0",
         "bbc2/samtools/samtools-1.17"
     params:
         min_reads=max(min_reads, config['complexity']['preseq_min_reads']),
@@ -638,7 +638,7 @@ rule md5sum:
         md5sum_file = 'md5sums.txt'
     threads: 2
     # envmodules:
-    #     "bbc/parallel/parallel-20191122",
+    #     "bbc2/parallel/parallel-20240922",
     resources:
         mem_gb = 4,
         log_prefix=lambda wildcards: "_".join(wildcards)
