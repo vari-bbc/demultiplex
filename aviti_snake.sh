@@ -41,7 +41,7 @@ if [ ${machine} == 'AV234602' ]; then # AVITI -f5
 	echo "This is an AVITI run."
 	project_code_field=6 # 6 in the new manifest
 	read2_number_of_cycles=$(cat RunParameters.json | grep -oP '(?<="R2": )\d+') 
-	samplesheet_grep=',Lane,'
+	samplesheet_grep='SampleName,'
 
 else
 	echo "Exiting:"
