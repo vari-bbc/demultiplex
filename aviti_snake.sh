@@ -16,7 +16,6 @@ cd ${SLURM_SUBMIT_DIR} #Change into the run directory
 #barcodes_perl=${SLURM_SUBMIT_DIR}/demultiplex/barcodes.pl # Perl script to quantify barcodes
 #mergenlanes_script=${SLURM_SUBMIT_DIR}/demultiplex/mergelanes.pl
 FC_ID=$(cat RunManifest.csv| grep "RunName" | cut -d ',' -f2)
-basecalls_dir=${SLURM_SUBMIT_DIR}/Results/Samples/ 
 
 ###========================================== Get run information
 
@@ -82,8 +81,6 @@ echo "Information:"
 echo "	Demultiplex ${n_uniq_sample_names} samples on ${nlanes} lanes."
 echo "	There are ${n_sample_lane} lane/samples combinations."
 
-# working directory assumed to be directory containing Data/ and demultiplex/ ?????
-cd ${SLURM_SUBMIT_DIR}
 
 snakemake_module="bbc2/snakemake/snakemake-7.25.0" 
 module load $snakemake_module
@@ -118,3 +115,22 @@ snakemake \
 
 echo "snakemake workflow done. $(date)" >&1
 echo "snakemake workflow done. $(date)" >&2
+
+echo "
+Information:
+	Done with FastQC/MultiQC!
+	Copying MultiQC reports to Results/
+" 
+
+for p in `cat RunManifest.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f${project_code_field}|grep -v '^$'|sort|uniq`; do
+	mqc=Results/Samples/${p}-${FC_ID}/${p}-${FC_ID}_multiqc_report.html
+	if [ -f $mqc ]; then
+		ln -srf ${mqc} Results/${p}-${FC_ID}_multiqc_report.html
+	else
+		echo "Did not find multiqc file for project \"${p}-${FC_ID}\" ($mqc)"
+	fi
+done
+
+echo "Information:"
+echo "	I'm done demultiplexing...goodbye..." 
+echo "Pipeline run to completion: $(date)"
