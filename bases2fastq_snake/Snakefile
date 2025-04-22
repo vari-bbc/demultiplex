@@ -134,7 +134,7 @@ rule bases2fastq:
     benchmark:
         "snakemake_job_logs/benchmarks/bases2fastq/benchmark.txt"
     envmodules:
-        "bbc2/bases2fastq/bases2fastq-1.7.0"
+        "bbc2/bases2fastq/bases2fastq-2.1.0"
     threads: 24
     resources:
         mem_gb = 180,
@@ -335,7 +335,7 @@ rule multiqc:
         mem_gb=32,
         log_prefix=lambda wildcards: "_".join(wildcards)
     envmodules:
-        "bbc2/multiqc/multiqc-1.14"
+        "bbc2/multiqc/multiqc-1.28"
     shell:
         """
         multiqc -f \
