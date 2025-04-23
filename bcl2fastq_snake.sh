@@ -204,6 +204,14 @@ for p in `cat ${SLURM_SUBMIT_DIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep
 	fi
 done
 
+### Copying Stats folder
+echo "Copying Data/Intensities/BaseCalls/Stats/ into ./diagnostic_files"
+
+if [ -d "${SLURM_SUBMIT_DIR}/Data/Intensities/BaseCalls/Stats/" ]; then
+    ln -sr ${SLURM_SUBMIT_DIR}/Data/Intensities/BaseCalls/Stats/ ${diagf}
+else
+    echo "Didn't find the Stats folder"
+fi
 
 
 echo "Information:"
