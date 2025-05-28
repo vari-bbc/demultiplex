@@ -153,16 +153,19 @@ rule bases2fastq:
 
         # Add missing files to the missing fastqs yaml files
         for fastq in {output.sample_fqs}
-        do
-            if [[ ! -f $fastq ]]
-            then
-            echo "      <li>`basename $fastq`</li>" >> `dirname $(dirname $fastq)`'/missing_fastqs_mqc.yaml'
-            echo $fastq >> {output.missing_fastqs_log}
-            touch $fastq
-
+            do
+            if [ ! -f $fastq ] ; then
+                echo "      <li>`basename $fastq`</li>" >> `dirname $(dirname $fastq)`'/missing_fastqs_mqc.yaml'
+                echo $fastq >> {output.missing_fastqs_log}
+                touch $fastq
+            elif [ $(stat -c %s $fastq) -lt 50 ] ; then                  
+                if [ "$(gzip -l $fastq | awk 'NR==2 {{print $2}}')" -eq 0 ] ; then
+                    echo "      <li>`basename $fastq`</li>" >> `dirname $(dirname $fastq)`'/missing_fastqs_mqc.yaml'
+                    echo $fastq >> {output.missing_fastqs_log}
+                fi
             fi
-        done
-        
+            done
+
         # Add footer line for the missing fastqs yaml
         for yaml_file in {output.missing_fastqs_yaml}
         do
@@ -371,13 +374,15 @@ rule fastqc:
         log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
-        if [ -s {input} ]
-        then
-            fastqc --extract --outdir {params.outdir} {input}
+        if [ $(stat -c %s {input}) -lt 50 ] ; then
+            if file {input} | grep -q "gzip compressed" && [ "$(gzip -l {input} | awk 'NR==2 {{print $2}}')" -eq 0 ] ; then
+                touch {output.html}
+            else 
+                fastqc --extract --outdir {params.outdir} {input}
+            fi
         else
-            touch {output.html}
+            fastqc --extract --outdir {params.outdir} {input}
         fi
-
         """
 
 rule find_low_count_fqs:
@@ -460,12 +465,15 @@ rule fastq_screen:
         log_prefix=lambda wildcards: "_".join(wildcards)
     shell:
         """
-        if [ -s {input} ]
-        then
-            fastq_screen --threads {threads} --outdir {params.outdir} {input}
+        if [ $(stat -c %s {input}) -lt 50 ] ; then
+            if file {input} | grep -q "gzip compressed" && [ "$(gzip -l {input} | awk 'NR==2 {{print $2}}')" -eq 0 ] ; then
+                touch {output.html} {output.txt}
+            else 
+                fastq_screen --threads {threads} --outdir {params.outdir} {input}
+            fi
         else
-            touch {output.html} {output.txt}
-        fi
+            fastq_screen --threads {threads} --outdir {params.outdir} {input}
+        fi        
         """
 
 rule bwa:
