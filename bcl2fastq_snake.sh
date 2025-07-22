@@ -51,6 +51,11 @@ elif [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
 	project_code_field=9 # 9 for nextseq
 	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2>'|sed -e 's/<Read2>//'|sed -e 's/<\/Read2>//'|sed -e 's/ //g') 
 	samplesheet_grep='^Sample_ID'
+elif [ ${machine} == 'SH00443' ]; then # NEXTSEQ -f9
+	echo "This is a MiSeq run."
+	project_code_field=9 # 9 for nextseq
+	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2>'|sed -e 's/<Read2>//'|sed -e 's/<\/Read2>//'|sed -e 's/ //g') 
+	samplesheet_grep='^Sample_ID'
 else
 	echo "Exiting:"
 	echo "	Did not recognize the sequencing machine (${machine})."
