@@ -20,11 +20,11 @@ barcodes_perl=/secondary/projects/genomicscore/tools/boilerplate_demux/Barcodes.
 basecalls_dir=${SLURM_SUBMIT_DIR}/Data/Intensities/BaseCalls/
 cd ${SLURM_SUBMIT_DIR} #Change into the run directory
 #======================================================================= Get the run information
-rundate="$(cut -d '_' -f1 <<< `basename ${SLURM_SUBMIT_DIR}` )"
-machine="$(cut -d '_' -f2 <<< `basename ${SLURM_SUBMIT_DIR}` )"
+rundate="$(cut -d '_' -f1 <<< `basename ${SLURM_SUBMIT_DIR}`)"
+machine="$(cut -d '_' -f2 <<< `basename ${SLURM_SUBMIT_DIR}`)"
 machine_grep="@${machine}" # used to get overrepresented barcodes in the demultiplexing workflow
-runnumber="$(cut -d '_' -f3 <<< `basename ${SLURM_SUBMIT_DIR}` )"
-flowcell="$(cut -d '_' -f4 <<< `basename ${SLURM_SUBMIT_DIR}` )"
+runnumber="$(cut -d '_' -f3 <<< `basename ${SLURM_SUBMIT_DIR}`)"
+flowcell="$(cut -d '_' -f4 <<< `basename ${SLURM_SUBMIT_DIR}`)"
 NOW=`date '+%F_%H:%M:%S'`;
 echo "
 Information:
@@ -37,7 +37,7 @@ Information:
 #~ exit
 #======================================================================= # Set some parameters based on the machine
 if [ ${machine} == 'MN01106' ]; then # MINISEQ -f12
-	echo "This is an MINISEQ run."
+	echo "This is a MINISEQ run."
 	project_code_field=10 # 12 for miniseq
 	read2_number_of_cycles=$(cat RunParameters.xml|grep '<ReadType>'|sed -e 's/<ReadType>//'|sed -e 's/<\/ReadType>//'|sed -e 's/ //g') 
 	samplesheet_grep='^Lane'
@@ -204,6 +204,14 @@ for p in `cat ${SLURM_SUBMIT_DIR}/SampleSheet.csv|grep -A1000 ${samplesheet_grep
 	fi
 done
 
+### Copying Stats folder
+echo "Copying Data/Intensities/BaseCalls/Stats/ into ./diagnostic_files"
+
+if [ -d "${SLURM_SUBMIT_DIR}/Data/Intensities/BaseCalls/Stats/" ]; then
+    ln -sr ${SLURM_SUBMIT_DIR}/Data/Intensities/BaseCalls/Stats/ ${diagf}
+else
+    echo "Didn't find the Stats folder"
+fi
 
 
 echo "Information:"

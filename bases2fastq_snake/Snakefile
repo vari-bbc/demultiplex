@@ -1,0 +1,678 @@
+import pandas as pd
+import numpy as np
+import io
+#from cStringIO import StringIO
+import os
+import re
+from snakemake.utils import validate, min_version
+##### set minimum snakemake version #####
+min_version("6.15.0")
+
+configfile: "demultiplex/bases2fastq_snake/config.yaml" #for testing added the ../
+
+snakemake_dir = os.getcwd() + "/"
+
+# make a tmp directory for analyses
+tmp_dir = os.path.join(snakemake_dir, "tmp")
+if not os.path.exists(tmp_dir):
+    os.mkdir(tmp_dir)
+
+
+# minimum reads to be considered a low read fastq
+min_reads = config['min_reads'] #100
+
+# Reference name for complexity
+complexity_ref_name = config['complexity']['ref_name']
+
+# https://stackoverflow.com/questions/10717504/is-it-possible-to-use-read-csv-to-read-only-specific-lines
+s = io.StringIO()
+read_lens = []
+with open('RunManifest.csv') as f:
+    skip_line = True
+    reads_section = False
+    for line in f:
+        # following two if blocks for parsing stuff below [Samples]
+        if not skip_line:
+            s.write(line)
+        if line.startswith('[Samples]'):
+            skip_line = False
+        # following code for extracting out the read lengths to determine SE or PE
+        if re.match('R[1-2]Cycles', line):
+            reads_section = True
+        elif line.startswith('['):
+            reads_section = False
+        if reads_section:
+            read_len_search = re.search(',(\d+)', line)
+            if read_len_search:
+                read_lens.append(read_len_search.group(1))
+s.seek(0) # "rewind" to the beginning of the StringIO object
+
+# Get FC ID
+fc_df = pd.read_csv('RunManifest.csv', index_col=0, usecols= [0,1], names= ['Idx','Dta'])
+fc_id = fc_df['Dta']['RunName']
+
+# read in the csv with the header lines removed
+# Convert SampleName from int to str
+samples = pd.read_csv(s, dtype={"SampleName" : str}, index_col=False)
+
+# Next we add a SampleNum column based on order of appearance in the SampleName column
+sample_names = samples.SampleName.values
+uniq_samples = pd.unique(sample_names).tolist()
+
+samples['SampleNum'] = [uniq_samples.index(sampleName) for sampleName in sample_names]
+samples['SampleNum'] = samples['SampleNum'] + 1
+
+# check that either 1 or 2 read lengths parsed from SampleSheet.csv
+assert (0 < len(read_lens) < 3), "Number of read lengths parsed not 1 or 2. It was " + str(len(read_lens))
+
+# whether data is PE (or SE)
+paired_end = True if len(read_lens) == 2 else False
+avail_read = ["1", "2"] if paired_end else ["1"]
+
+if 'Lane' in samples.columns:
+    lanes = pd.unique(samples['Lane'])
+    sample_fqs = expand("Results/Samples/{sample.Project}/{sample.SampleName}/{sample.SampleName}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),
+    sample_fqs_fc_id = expand("Results/Samples/{sample.Project}-" + fc_id + "/{sample.SampleName}/{sample.SampleName}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),    
+    undetermined_fqs = expand("Results/Samples/Undetermined/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
+# else:
+#     lanes = [1,2,3,4] # if no Lane column in SampleSheet.csv, assume it is NextSeq and that each sample spread over 4 lanes.
+#     sample_fqs = expand("Results/Samples/{sample.Project}/{sample.SampleName}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),
+#     sample_fqs_fc_id = expand("Results/Samples/{sample.Project}-" + fc_id + "/{sample.SampleName}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),   
+#     undetermined_fqs = expand("Results/Samples/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
+
+
+missing_fq_yamls = expand("Results/Samples/{project}/missing_fastqs_mqc.yaml", project=np.unique(samples['Project']))
+low_counts_fq_yamls = expand("Results/Samples/{project}-" + fc_id + "/low_counts_fastqs_mqc.yaml", project=np.unique(samples['Project']))
+#fastqc_and_screen_out = expand("Results/Samples/{sample.Project}/FastQC/{sample.SampleName}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']) + expand("Results/Samples/Undetermined/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen'])
+
+project_names = samples.Project.values
+uniq_projects = pd.unique(project_names).tolist()
+
+### Check if they are multiple lengths in the Length column, if yes, what are they, run trimm rule
+mul_reads = samples.Length.unique()
+mul_lens = len(mul_reads)
+
+if samples.Length.isnull().values.any():
+    mul_lens_run = False
+elif mul_lens > 1 or int(mul_reads.min()) < int(read_lens[0]):
+    mul_lens_run = True 
+    for i in mul_reads:
+        assert(i <= int(read_lens[0])), "The read length specified in Length is bigger that the one in [Reads]"
+    grouped_samples = samples.groupby(['SampleName']).min()
+    trim_df = grouped_samples['Length'].to_frame()
+else:
+    mul_lens_run = False
+
+rule all: # for multiple lanes and merged lanes (L000)
+    input:
+        sample_fqs_fc_id,
+        undetermined_fqs,
+        expand("Results/Samples/{project}-" + fc_id + "/{project}-" + fc_id +"_multiqc_report.html", project=pd.unique(samples['Project'])), #if "run_qc" in config else [],
+        expand("Results/Samples/Undetermined_L000_R{read}_001.fastq.gz", read=avail_read),
+        expand("Results/Samples/{project}-" + fc_id + "/md5sums.txt", project=pd.unique(samples['Project']))
+        #fastqc_and_screen_out if "run_qc" in config else [],
+        #expand("Results/Samples/{sample.Project}/FastQC/{sample.SampleName}_L000_R{read}_001_{prog}.html", sample=samples.itertuples(), read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+        #expand("Results/Samples/Undetermined/Undetermined_S0_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+        #expand("Results/Samples/{sample.Project}/{sample.SampleName}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1])
+
+rule bases2fastq:
+    """
+    Run bases2fastq.
+    """
+    input:
+    output:
+        done="bases2fastq.done",
+        sample_fqs=sample_fqs,
+        undetermined_fqs=undetermined_fqs,
+        missing_fastqs_yaml=missing_fq_yamls,
+        missing_fastqs_log="missing_fastqs.log",
+        #sample_fqs=expand("Results/Samples/{sample.Project}/{sample.SampleName}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),
+        #undetermined_fqs=expand("Results/Samples/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=[1,2] if paired_end else [1], lane=pd.unique(samples['Lane']))
+    params:
+    log:
+        log="bases2fastq.log",
+    benchmark:
+        "snakemake_job_logs/benchmarks/bases2fastq/benchmark.txt"
+    envmodules:
+        "bbc2/bases2fastq/bases2fastq-2.1.0"
+    threads: 24
+    resources:
+        mem_gb = 180,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        bases2fastq . Results -p {threads} --legacy-fastq --force-index-orientation &> {log.log}
+        
+        touch missing_fastqs.log
+
+        # Add header line for the missing fastqs yaml
+        for yaml_file in {output.missing_fastqs_yaml}
+        do
+            echo "id: 'missing-fqs'\nsection_name: 'Missing fastq files after dmux'\ndescription: 'This section lists all the fastq files not found after bases2fastq and lane-merging.'\nplot_type: 'html'\ndata: |\n    <ul>" > $yaml_file
+        done
+
+        # Add missing files to the missing fastqs yaml files
+        for fastq in {output.sample_fqs}
+            do
+            if [ ! -f $fastq ] ; then
+                echo "      <li>`basename $fastq`</li>" >> `dirname $(dirname $fastq)`'/missing_fastqs_mqc.yaml'
+                echo $fastq >> {output.missing_fastqs_log}
+                touch $fastq
+            elif [ $(stat -c %s $fastq) -lt 50 ] ; then                  
+                if [ "$(gzip -l $fastq | awk 'NR==2 {{print $2}}')" -eq 0 ] ; then
+                    echo "      <li>`basename $fastq`</li>" >> `dirname $(dirname $fastq)`'/missing_fastqs_mqc.yaml'
+                    echo $fastq >> {output.missing_fastqs_log}
+                fi
+            fi
+            done
+
+        # Add footer line for the missing fastqs yaml
+        for yaml_file in {output.missing_fastqs_yaml}
+        do
+            echo "    </ul>" >> $yaml_file
+        done
+
+        touch {output.done}
+        """
+
+ruleorder: add_FC_ID > cat_fqs_undetermined
+
+rule add_FC_ID:
+    """
+    Add the FC_ID to the project folder name
+    """
+    input:
+        "bases2fastq.done",
+        sample_fqs,
+    output:
+        samples_fqs_fc_ids = sample_fqs_fc_id,
+        mv_done = "mvdone.done"
+    params:
+        fc_ids = fc_id,
+        uniq_project_list = uniq_projects,
+    benchmark:
+        "snakemake_job_logs/benchmarks/add_fc_id/benchmark.txt"
+    threads: 1
+    resources:
+        mem_gb = 8,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:       
+        """
+        # Add the FC_ID to the project folder name
+        cd Results/Samples/
+        FC_ID="{params.fc_ids}"
+        if [[ -n ${{FC_ID}} ]]; then
+            for dir in {params.uniq_project_list} ; do
+                if [[ -d "$dir" ]]; then
+                    TGT="${{dir}}-${{FC_ID}}"
+                    rsync -a --remove-source-files "$dir"/ "$TGT"/
+                    rm -r "$dir"/
+                fi
+            done
+        fi
+        cd ../../
+        touch {output.mv_done}
+     
+        """ 
+
+def get_all_lanes_fqs(wildcards):
+    if 'Lane' in samples.columns:
+        fqs = expand("Results/Samples/{sample.Project}-" + fc_id + "/{sample.SampleName}/{sample.SampleName}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples[samples['SampleName'] == wildcards.sample].itertuples(), read=wildcards.read)
+    else:
+        fqs = expand("Results/Samples/{sample.Project}-" + fc_id + "/{sample.SampleName}/{sample.SampleName}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples[samples['SampleName'] == wildcards.sample].itertuples(), read=wildcards.read, lane=lanes)
+
+    return fqs
+
+rule cat_fqs:
+    """
+    Merge lanes for sample fastq.gz files.
+    """
+    input:
+        get_all_lanes_fqs,
+        "mvdone.done"
+        
+    output:
+        "Results/Samples/{project}-" + fc_id + "/{sample}_L000_R{read}_001.fastq.gz"
+    params:
+    benchmark:
+        "snakemake_job_logs/benchmarks/cat_fqs/{project}-" + fc_id + "/{sample}_R{read}.txt"
+    envmodules:
+    threads: 1
+    resources:
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    wildcard_constraints:
+        sample="[^/]+"
+    run:
+        if len(input) > 1:
+            shell("cat {input} > {output}")
+        else:
+            shell("ln -sr {input} {output}")
+
+rule cat_fqs_undetermined:
+    """
+    Merge lanes for undetermined fastq.gz files.
+    """
+    input:
+        expand("Results/Samples/Undetermined/Undetermined_S0_L00{lane}_R{{read}}_001.fastq.gz", lane=lanes),
+        "mvdone.done"
+    output:
+        "Results/Samples/Undetermined_L000_R{read}_001.fastq.gz"
+    params:
+    benchmark:
+        "snakemake_job_logs/benchmarks/cat_fqs_undetermined/Undetermined_L000_R{read}.txt"
+    envmodules:
+    threads: 1
+    resources:
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    run:
+        if len(input) > 1:
+            shell("cat {input} > {output}")
+        else:
+            shell("ln -sr {input} {output}")
+
+def get_cat_reads (wildcards):
+    cat_inp_fqs = "Results/Samples/{project}-" + fc_id + "/{sample}_L000_R{read}_001.fastq.gz"
+    return cat_inp_fqs
+
+rule trim_read_length:
+    """
+    Trimming the lengths of reads if there is a difference between projects' desired length
+    """
+    input:
+        get_cat_reads,
+    output:
+        "Results/Samples/{project}-" + fc_id + "/Trimmed/{sample}_L000_R{read}_001.fastq.gz",
+    params:
+        read_length = int(read_lens[0]),
+        crop_length = lambda wildcards: trim_df['Length'][wildcards.sample]
+    benchmark:
+        "snakemake_job_logs/benchmarks/trim_read_length/{project}-" + fc_id + "/{sample}_R{read}.txt"
+    envmodules:
+        "bbc2/Trimmomatic/trimmomatic-0.39"
+    threads: 4
+    resources:
+        mem_gb = 8,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+            java -jar $TRIMM SE -threads {threads} {input} {output} CROP:{params.crop_length}
+
+
+        """
+
+def get_post_alignment_metrics(wildcards):
+    input_files = []
+    if config['complexity']['run']:
+
+        align_dir = "Results/Samples/{{project}}-" + fc_id + "/Align/{aligner}".format(project=wildcards.project, aligner = 'star' if config['complexity']['DNA_or_RNA']=='RNA' else 'bwa')
+        sample_names = samples[samples['Project'] == wildcards.project]['SampleName']
+        #aligner_suff = '' if config['complexity']['DNA_or_RNA']=="DNA" else '.Aligned.sortedByCoord.out'
+        #input_files = expand(align_dir + "/flagstat/{sample}{aligner_suff}.flagstat", sample=sample_names, aligner_suff=aligner_suff)
+        #input_files = input_files + expand(align_dir + "/CollectInsertSizeMetrics/{sample}{aligner_suff}.insert_size_metrics.txt", sample=sample_names, aligner_suff=aligner_suff)
+        input_files = expand(align_dir + "/CollectAlignmentSummaryMetrics/{sample}.bam.aln_metrics", sample=sample_names) if config['complexity']['DNA_or_RNA']=='DNA' else []
+
+    return input_files
+
+rule multiqc:
+    """
+    Make multiQC report.
+    """
+    input:
+        lambda wildcards: expand("Results/Samples/{{project}}-" + fc_id + "/FastQC/{sample.SampleName}_L000_R{read}_001_{prog}.html", sample=samples[samples['Project'] == wildcards.project].itertuples(), read=avail_read, prog=['fastqc','screen']),
+        #expand("Results/Samples/{{project}}/Undetermined_L000_R{read}_001_{prog}.html", read=[1,2] if paired_end else [1], prog=['fastqc','screen']),
+        lambda wildcards: expand("Results/Samples/{{project}}-" + fc_id + "/Align/preseq_complexity/{sample.SampleName}.lc_extrap.txt", sample=samples[samples['Project'] == wildcards.project].itertuples()) if config['complexity']['run'] else [],
+        low_counts_fq_yamls,
+        get_post_alignment_metrics,
+    output:
+        "Results/Samples/{project}-" + fc_id + "/{project}-" + fc_id +"_multiqc_report.html",
+        directory("Results/Samples/{project}-" + fc_id + "/{project}-" + fc_id +"_multiqc_report_data")
+    benchmark:
+        "snakemake_job_logs/benchmarks/multiqc/{project}-" + fc_id + ".txt"
+    params:
+        project_dir="Results/Samples/{project}-" + fc_id + "/",
+        name_html="{project}-" + fc_id +"_multiqc_report.html"
+    threads: 1
+    resources:
+        mem_gb=32,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    envmodules:
+        "bbc2/multiqc/multiqc-1.28"
+    shell:
+        """
+        multiqc -f \
+        -n {params.name_html} \
+        -o {params.project_dir} {params.project_dir}
+
+        """
+
+def get_trim_reads(wildcards):
+    trim_inp_fqs = "Results/Samples/{project}-" + fc_id + "/Trimmed/{sample}_L000_R{read}_001.fastq.gz"
+    return trim_inp_fqs
+
+rule fastqc:
+    """
+    Run fastqc for merged (across lanes) sample files.
+    """
+    input:
+        get_trim_reads if mul_lens_run else get_cat_reads,
+    output:
+        html="Results/Samples/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_fastqc.html",
+        files=directory("Results/Samples/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_fastqc"),
+        done=touch("Results/Samples/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_fastqc/done")
+    params:
+        outdir="Results/Samples/{project}-" + fc_id + "/FastQC/"
+    benchmark:
+        "snakemake_job_logs/benchmarks/fastqc/{project}-" + fc_id + "/{sample}_R{read}.txt"
+    envmodules:
+        "bbc2/fastqc/fastqc-0.12.1"
+    threads: 1
+    priority: 50
+    resources:
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        if [ $(stat -c %s {input}) -lt 50 ] ; then
+            if file {input} | grep -q "gzip compressed" && [ "$(gzip -l {input} | awk 'NR==2 {{print $2}}')" -eq 0 ] ; then
+                touch {output.html}
+            else 
+                fastqc --extract --outdir {params.outdir} {input}
+            fi
+        else
+            fastqc --extract --outdir {params.outdir} {input}
+        fi
+        """
+
+rule find_low_count_fqs:
+    """
+    Check fastq files to find those with low read counts.
+    """
+    input:
+        expand("Results/Samples/{sample.Project}-" + fc_id + "/FastQC/{sample.SampleName}_L000_R{read}_001_fastqc/done", sample=samples.itertuples(), read=avail_read)
+    output:
+        low_counts_yaml=low_counts_fq_yamls,
+        low_counts_log="low_count_fastqs.log"
+    params:
+        min_reads=min_reads
+    benchmark:
+        "snakemake_job_logs/benchmarks/find_low_count_fqs/bench.txt"
+    envmodules:
+    threads: 1
+    priority: 50
+    resources:
+        mem_gb = 22,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        # Add header lines for the low_counts fastqs yaml
+        for yaml_file in {output.low_counts_yaml}
+        do
+            echo "id: 'low-counts-fqs'\nsection_name: 'Low count fastq files after dmux'\ndescription: 'This section lists all the fastq files with < {params.min_reads} reads after bases2fastq and lane-merging.'\nplot_type: 'html'\ndata: |\n    <ul>" > $yaml_file
+        done
+
+        # Add low_counts files to the low_counts fastqs yaml files
+        for fastqc_done in {input}
+        do
+            fastqc_data_file=`dirname $fastqc_done`'/fastqc_data.txt'
+            fastq=$(basename $(dirname $fastqc_done) | perl -npe 's/_fastqc/.fastq.gz/')
+            proj_dir=$(dirname $(dirname $(dirname $fastqc_data_file)))
+
+            if [ -e $fastqc_data_file ]
+            then
+                num_reads=$(grep -P '^Total Sequences' $fastqc_data_file | grep -Po '\d+$')
+            else
+                num_reads=0
+            fi
+
+            # Check the number of reads
+            if [ $num_reads -lt {params.min_reads} ]
+            then
+                echo "$proj_dir/$fastq\t$num_reads" >> {output.low_counts_log}
+                echo "      <li>$fastq\t$num_reads</li>" >> "$proj_dir/low_counts_fastqs_mqc.yaml"
+            fi
+        done
+                
+        # Add footer line for the low_counts fastqs yaml
+        for yaml_file in {output.low_counts_yaml}
+        do
+            echo "    </ul>" >> $yaml_file
+        done     
+        # if all of the fastq files have more than 100 reads, then the snakemake pipeline is not able to generate the low_count_fastqs.log file.
+        # So the below command is added.
+        echo "done" >> {output.low_counts_log}
+        """
+
+rule fastq_screen:
+    """
+    Run fastq_screen for merged (across lanes) sample files.
+    """
+    input:
+        get_trim_reads if mul_lens_run else get_cat_reads
+    output:
+        html = "Results/Samples/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_screen.html",
+        txt = "Results/Samples/{project}-" + fc_id + "/FastQC/{sample}_L000_R{read}_001_screen.txt",
+    params:
+        outdir = "Results/Samples/{project}-" + fc_id + "/FastQC/"
+    benchmark:
+        "snakemake_job_logs/benchmarks/fastq_screen/{project}-" + fc_id + "/{sample}_R{read}.txt"
+    envmodules:
+        "bbc2/fastq_screen/fastq_screen-0.14.0"
+    threads: 4
+    resources:
+        mem_gb = 88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        if [ $(stat -c %s {input}) -lt 50 ] ; then
+            if file {input} | grep -q "gzip compressed" && [ "$(gzip -l {input} | awk 'NR==2 {{print $2}}')" -eq 0 ] ; then
+                touch {output.html} {output.txt}
+            else 
+                fastq_screen --threads {threads} --outdir {params.outdir} {input}
+            fi
+        else
+            fastq_screen --threads {threads} --outdir {params.outdir} {input}
+        fi        
+        """
+
+rule bwa:
+    input:
+        expand("Results/Samples/{{project}}-" + fc_id + "/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
+    output:
+        outbam=temp("Results/Samples/{project}-" + fc_id + "/Align/bwa/{sample}.bam"),
+        outbai="Results/Samples/{project}-" + fc_id + "/Align/bwa/{sample}.bam.bai",
+        idxstat="Results/Samples/{project}-" + fc_id + "/Align/bwa/{sample}.bam.idxstat",
+        #flagstat="Results/Samples/{project}/Align/bwa/{sample}.bam.flagstat"
+    benchmark:
+        "snakemake_job_logs/benchmarks/bwa/{project}-" + fc_id + "/{sample}.txt"
+    params:
+        bwa_idx=config['complexity']['refs'][complexity_ref_name]['bwa']['index'],
+    threads: 4
+    envmodules:
+        "bbc2/bwa/bwa-0.7.17",
+        "bbc2/samtools/samtools-1.17",
+    resources:
+        mem_gb=88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        bwa mem \
+        -t {threads} \
+        {params.bwa_idx} \
+        {input} | \
+        samtools sort \
+        -m 3G \
+        -@ {threads} \
+        -O "BAM" \
+        -o {output.outbam} \
+        -
+
+        samtools index -@ {threads} {output.outbam}
+        
+        samtools idxstats -@ {threads} {output.outbam} > {output.idxstat}
+        
+        """
+
+rule star:
+    input:
+        expand("Results/Samples/{{project}}-" + fc_id + "/{{sample}}_L000_R{read}_001.fastq.gz", read=avail_read)
+    output:
+        outbam =              temp("Results/Samples/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam"),
+        bai =                 "Results/Samples/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam.bai",
+        log_final =           "Results/Samples/{project}-" + fc_id + "/Align/star/{sample}.Log.final.out",
+        log =                 "Results/Samples/{project}-" + fc_id + "/Align/star/{sample}.Log.out",
+        sj =                  "Results/Samples/{project}-" + fc_id + "/Align/star/{sample}.SJ.out.tab",
+        g_dir =               directory("Results/Samples/{project}-" + fc_id + "/Align/star/{sample}._STARgenome"),
+        pass1_dir =           directory("Results/Samples/{project}-" + fc_id + "/Align/star/{sample}._STARpass1"),
+        idxstat =             "Results/Samples/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam.idxstat"
+    benchmark:
+        "snakemake_job_logs/benchmarks/star/{project}-" + fc_id + "/{sample}.txt"
+    params:
+        index = config['complexity']['refs'][complexity_ref_name]['star']['index'],
+        outprefix = "Results/Samples/{project}-" + fc_id + "/Align/star/{sample}."
+    threads: 4
+    envmodules:
+        "bbc2/STAR/STAR-2.7.10a",
+        "bbc2/samtools/samtools-1.17",
+    resources:
+        mem_gb=88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        STAR \
+        --runThreadN {threads} \
+        --genomeDir {params.index} \
+        --readFilesIn {input} \
+        --twopassMode Basic \
+        --readFilesCommand zcat \
+        --outSAMtype BAM SortedByCoordinate \
+        --outFileNamePrefix {params.outprefix} \
+        --outStd Log
+
+
+        samtools index -@ {threads} {output.outbam}
+        
+        samtools idxstats {output.outbam} > {output.idxstat}
+
+ 
+        """
+rule CollectAlignmentSummaryMetrics:
+    """
+    Run Picard CollectAlignmentSummaryMetrics.
+    """
+    input:
+        "Results/Samples/{project}-" + fc_id + "/Align/{aligner}/{sample}.Aligned.sortedByCoord.out.bam" if config['complexity']['DNA_or_RNA']=='RNA' else "Results/Samples/{project}-" + fc_id + "/Align/bwa/{sample}.bam" 
+    output:
+        out="Results/Samples/{project}-" + fc_id + "/Align/{aligner}/CollectAlignmentSummaryMetrics/{sample}.bam.aln_metrics"
+    params:
+        temp="Results/Samples/{project}-" + fc_id + "/Align/{aligner}/CollectAlignmentSummaryMetrics/",
+        reffasta=lambda wildcards: config['complexity']['refs'][complexity_ref_name][wildcards.aligner]["fasta"]
+    benchmark:
+        "snakemake_job_logs/benchmarks/{aligner}/CollectAlignmentSummaryMetrics/{project}-" + fc_id + "/{sample}.txt"
+    envmodules:
+        "bbc2/picard/picard-2.27.5"
+    threads: 4
+    resources: 
+        mem_gb = 64,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        java -Xms8g -Xmx{resources.mem_gb}g -Djava.io.tmpdir={params.temp} -jar $PICARD CollectAlignmentSummaryMetrics -I {input} -O {output.out} -R {params.reffasta}  
+        """
+
+rule preseq_complexity:
+    """
+    Run preseq c_curve and lc_extrap on the BAMs.
+    """
+    input:
+        "Results/Samples/{project}-" + fc_id + "/Align/star/{sample}.Aligned.sortedByCoord.out.bam" if config['complexity']['DNA_or_RNA']=='RNA' else "Results/Samples/{project}-" + fc_id + "/Align/bwa/{sample}.bam" 
+    output:
+        filtbam=temp("Results/Samples/{project}-" + fc_id + "/Align/preseq_complexity/{sample}.filt.bam"),
+        ccurve="Results/Samples/{project}-" + fc_id + "/Align/preseq_complexity/{sample}.c_curve.txt",
+        lcextrap="Results/Samples/{project}-" + fc_id + "/Align/preseq_complexity/{sample}.lc_extrap.txt",
+    benchmark:
+        "snakemake_job_logs/benchmarks/preseq_complexity/{project}-" + fc_id + "/{sample}.txt"
+    envmodules:
+        "bbc2/preseq/preseq-3.2.0",
+        "bbc2/samtools/samtools-1.17"
+    params:
+        min_reads=max(min_reads, config['complexity']['preseq_min_reads']),
+        seg_len_max=config['complexity']['preseq_seq_len_max']#10000000,
+    resources:
+        mem_gb=88,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    threads: 4
+    shell:
+        """
+        # Filter for primary alignments only
+        samtools view -@ {threads} -F 256 -o {output.filtbam} {input}
+
+        # Run preseq only if there are more reads than the cutoff
+        if [ `samtools view -f 64 -F 256 -c {output.filtbam}` -lt {params.min_reads} ]
+        then
+            touch {output.ccurve} {output.lcextrap}
+        else
+
+            preseq c_curve \
+            -l {params.seg_len_max} \
+            -v \
+            -P \
+            -bam \
+            -o {output.ccurve} \
+            {output.filtbam}
+
+            echo "Finished c_curve." >&1
+            echo "Finished c_curve." >&2
+
+            preseq lc_extrap \
+            -l {params.seg_len_max} \
+            -v \
+            -P \
+            -bam \
+            -o {output.lcextrap} \
+            {output.filtbam}
+
+            echo "Finished lc_extrap." >&1
+            echo "Finished lc_extrap." >&2
+        fi
+        """
+
+rule md5sum:
+    input:
+        lambda wildcards: expand("Results/Samples/{sample.Project}-" + fc_id + "/{sample.SampleName}_L000_R{read}_001.fastq.gz",
+            sample=samples[samples['Project'] == wildcards.project].itertuples(),
+            read=avail_read)
+        # "Results/Samples/{project}/{sample}_L000_R{read}_001.fastq.gz",
+    output:
+        "Results/Samples/{project}-" + fc_id + "/md5sums.txt",
+        # fqs = "Results/Samples/{project}/{sample}_L000_R{read}_001.fastq.gz"
+    benchmark:
+        "snakemake_job_logs/md5sum/{project}-" + fc_id + ".txt",
+    params:
+        project_dir="Results/Samples/{project}-" + fc_id + "/",
+        md5sum_file = 'md5sums.txt'
+    threads: 2
+    # envmodules:
+    #     "bbc2/parallel/parallel-20240922",
+    resources:
+        mem_gb = 4,
+        log_prefix=lambda wildcards: "_".join(wildcards)
+    shell:
+        """
+        cd {params.project_dir}
+
+        target_files=$(find -name '*fastq.gz' | sort)
+        md5sum $target_files > {params.md5sum_file}
+        
+        # target_files=$(find Results/Samples/ -name '*fastq.gz' ! -name "Undetermined*.fastq.gz" | sort)
+        # 
+        # if [ -z "$target_files" ]; then
+        #     echo "No fastq.gz files found."
+        #     exit 1
+        # fi
+        # 
+        # parallel -k --will-cite -j 8 md5sum ::: $target_files > {output}
+        
+        cd -
+        """
