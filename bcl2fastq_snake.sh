@@ -53,7 +53,7 @@ elif [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
 	samplesheet_grep='^Sample_ID'
 elif [ ${machine} == 'SH00443' ]; then # NEXTSEQ -f9
 	echo "This is a MiSeq run."
-	project_code_field=9 # 9 for nextseq
+	project_code_field=9 # 9 for nextseq/miseq
 	read2_number_of_cycles=$(cat RunParameters.xml|grep '<Read2>'|sed -e 's/<Read2>//'|sed -e 's/<\/Read2>//'|sed -e 's/ //g') 
 	samplesheet_grep='^Sample_ID'
 else
@@ -79,6 +79,8 @@ n_sample_lane=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${sa
 n_uniq_sample_names=$(cat SampleSheet.csv|grep -A1000 ${samplesheet_grep}|grep -v ${samplesheet_grep}|cut -d ',' -f2|grep -v '^$'|sort|uniq|wc -l) 
 if [ ${machine} == 'NS500653' ]; then # NEXTSEQ -f9
 	nlanes=4
+elif [ ${machine} == 'SH00443' ]; then # MISEQ -f9
+    nlanes=1
 fi
 if [ ! "${n_sample_lane_unique}" == "${n_sample_lane}" ]; then
 	echo "Exiting:"
