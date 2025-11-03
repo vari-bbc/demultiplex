@@ -134,7 +134,7 @@ rule bases2fastq:
     benchmark:
         "snakemake_job_logs/benchmarks/bases2fastq/benchmark.txt"
     envmodules:
-        "bbc2/bases2fastq/bases2fastq-2.1.0"
+        "bbc2/bases2fastq/bases2fastq-2.3.0"
     threads: 24
     resources:
         mem_gb = 180,
