@@ -4,6 +4,7 @@ import io
 #from cStringIO import StringIO
 import os
 import re
+import xml.etree.ElementTree as ET
 from snakemake.utils import validate, min_version
 ##### set minimum snakemake version #####
 min_version("6.15.0")
@@ -47,6 +48,14 @@ with open('SampleSheet.csv') as f:
                 read_lens.append(read_len_search.group(1))
 s.seek(0) # "rewind" to the beginning of the StringIO object
 
+# Get instrument name from the RunParameters.xml
+
+tree = ET.parse("RunParameters.xml")
+root = tree.getroot()
+instrument_name = root.findtext(".//InstrumentType")  # search anywhere under root
+if instrument_name is None:
+    raise ValueError("No <InstrumentType> in RunParamenters.xml")
+
 # Get FC ID
 fc_df = pd.read_csv('SampleSheet.csv', index_col=0, usecols= [0,1], names= ['Idx','Dta'])
 fc_id = fc_df['Dta']['Experiment Name']
@@ -75,7 +84,10 @@ if 'Lane' in samples.columns:
     sample_fqs_fc_id = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_S{sample.SampleNum}_L00{sample.Lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1]),    
     undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
 else:
-    lanes = [1,2,3,4] # if no Lane column in SampleSheet.csv, assume it is NextSeq and that each sample spread over 4 lanes.
+    if instrument_name == "MiSeqi100Plus":
+        lanes = [1]
+    else:
+        lanes = [1,2,3,4] # if no Lane column in SampleSheet.csv, assume it is NextSeq and that each sample spread over 4 lanes.
     sample_fqs = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),
     sample_fqs_fc_id = expand("Data/Intensities/BaseCalls/{sample.Sample_Project}-" + fc_id + "/{sample.Sample_Name}_S{sample.SampleNum}_L00{lane}_R{read}_001.fastq.gz", sample=samples.itertuples(), read=[1,2] if paired_end else [1], lane=lanes),   
     undetermined_fqs = expand("Data/Intensities/BaseCalls/Undetermined_S0_L00{lane}_R{read}_001.fastq.gz", read=avail_read, lane=lanes)
