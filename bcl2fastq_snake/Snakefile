@@ -52,9 +52,15 @@ s.seek(0) # "rewind" to the beginning of the StringIO object
 
 tree = ET.parse("RunParameters.xml")
 root = tree.getroot()
-instrument_name = root.findtext(".//InstrumentType")  # search anywhere under root
+
+instrument_name = (
+    root.findtext(".//InstrumentType")
+    or root.findtext(".//InstrumentName")
+)
+
 if instrument_name is None:
-    raise ValueError("No <InstrumentType> in RunParamenters.xml")
+    raise ValueError("No <InstrumentType> or <InstrumentName> in RunParameters.xml")
+
 
 # Get FC ID
 fc_df = pd.read_csv('SampleSheet.csv', index_col=0, usecols= [0,1], names= ['Idx','Dta'])
